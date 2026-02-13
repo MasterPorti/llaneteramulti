@@ -229,15 +229,20 @@ export function DescargasSection() {
     }
 
     const data = result.data;
-    // Use landscape when showing all bodegas, portrait when filtering by one
-    const orientation = data.bodegaFiltro ? 'portrait' : 'landscape';
-    const doc = new jsPDF(orientation);
+    // Always use portrait orientation
+    const doc = new jsPDF('portrait');
 
     const subtitleText = data.bodegaFiltro
-      ? `Bodega: ${data.bodegaFiltro} · ${data.totales.productos} productos · ${data.totales.unidades} unidades`
-      : `Todas las bodegas · ${data.totales.productos} productos · ${data.totales.unidades} unidades`;
+      ? `Bodega: ${data.bodegaFiltro}`
+      : undefined;
 
     const startY = await addHeader(doc, 'CATÁLOGO DE PRODUCTOS', subtitleText);
+
+    // Sort products by código auxiliar (ascending - menor a mayor)
+    const productosOrdenados = [...data.productos].sort((a, b) => {
+      // Compare as strings, which works for numeric codes like "205 55 16"
+      return a.codigoAuxiliar.localeCompare(b.codigoAuxiliar, undefined, { numeric: true });
+    });
 
     // Table headers based on whether we're filtering by bodega
     let headers: string[];
@@ -245,7 +250,7 @@ export function DescargasSection() {
 
     if (data.bodegaFiltro) {
       headers = ['Cód. Aux.', 'Producto', 'Medida', 'Precio', 'Stock'];
-      rows = data.productos.map(p => [
+      rows = productosOrdenados.map(p => [
         p.codigoAuxiliar,
         `${p.marca} ${p.modelo}`,
         p.medida,
@@ -254,7 +259,7 @@ export function DescargasSection() {
       ]);
     } else {
       headers = ['Cód. Aux.', 'Producto', 'Medida', 'Precio', 'Total', ...data.bodegas.map(b => b.nombre)];
-      rows = data.productos.map(p => [
+      rows = productosOrdenados.map(p => [
         p.codigoAuxiliar,
         `${p.marca} ${p.modelo}`,
         p.medida,
@@ -265,43 +270,101 @@ export function DescargasSection() {
     }
 
     // Different column styles based on orientation
+    const numBodegas = data.bodegas.length;
+    const bodegaColStart = 5; // Index where bodega columns start
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Calculate table width and center margin (portrait A4 = 210mm, margins ~14mm each side = 182mm usable)
+    let tableWidth: number;
+    if (data.bodegaFiltro) {
+      tableWidth = 20 + 45 + 30 + 25 + 15; // Sum of all column widths = 135mm
+    } else {
+      tableWidth = 18 + 38 + 25 + 20 + 12 + (numBodegas * 10); // Sum including bodega columns
+    }
+    const marginLeft = Math.max(14, (pageWidth - tableWidth) / 2);
+
     const columnStyles = data.bodegaFiltro
       ? {
-          0: { cellWidth: 25, halign: 'center' as const }, // Cód. Aux.
-          1: { cellWidth: 55 }, // Producto
-          2: { cellWidth: 28 }, // Medida
-          3: { cellWidth: 28, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
-          4: { cellWidth: 18, halign: 'center' as const, fontStyle: 'bold' as const }, // Stock
+          0: { cellWidth: 20, halign: 'center' as const }, // Cód. Aux.
+          1: { cellWidth: 45 }, // Producto
+          2: { cellWidth: 30 }, // Medida
+          3: { cellWidth: 25, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
+          4: { cellWidth: 15, halign: 'center' as const, fontStyle: 'bold' as const }, // Stock
         }
       : {
-          0: { cellWidth: 22, halign: 'center' as const }, // Cód. Aux.
-          1: { cellWidth: 45 }, // Producto
-          2: { cellWidth: 22 }, // Medida
-          3: { cellWidth: 22, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
-          4: { cellWidth: 14, halign: 'center' as const, fontStyle: 'bold' as const }, // Total
-          // Bodegas columns will auto-size
+          0: { cellWidth: 18, halign: 'center' as const }, // Cód. Aux.
+          1: { cellWidth: 38 }, // Producto
+          2: { cellWidth: 25 }, // Medida
+          3: { cellWidth: 20, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
+          4: { cellWidth: 12, halign: 'center' as const, fontStyle: 'bold' as const }, // Total
+          // Bodega columns - narrower for portrait
+          ...Object.fromEntries(
+            data.bodegas.map((_, i) => [bodegaColStart + i, { cellWidth: 10, halign: 'center' as const }])
+          ),
         };
 
     autoTable(doc, {
       head: [headers],
       body: rows,
       startY: startY,
+      margin: { left: marginLeft },
       styles: {
-        fontSize: data.bodegaFiltro ? 10 : 9,
-        cellPadding: 4,
+        fontSize: data.bodegaFiltro ? 9 : 7,
+        cellPadding: 2,
       },
       headStyles: {
-        fillColor: [34, 197, 94],
+        fillColor: [220, 38, 38], // Rojo
         textColor: 255,
         fontStyle: 'bold',
+        minCellHeight: data.bodegaFiltro ? 10 : 25, // Más alto para texto vertical
       },
       alternateRowStyles: {
-        fillColor: [240, 253, 244],
+        fillColor: [254, 242, 242], // Rojo claro
       },
       columnStyles,
+      didDrawCell: (hookData) => {
+        // Draw vertical text for bodega column headers (only when showing all bodegas)
+        if (!data.bodegaFiltro && hookData.section === 'head' && hookData.column.index >= bodegaColStart) {
+          const cell = hookData.cell;
+          const text = headers[hookData.column.index];
+
+          // Clear the default text by drawing a filled rectangle
+          doc.setFillColor(220, 38, 38); // Rojo
+          doc.rect(cell.x, cell.y, cell.width, cell.height, 'F');
+
+          // Draw vertical text (rotated -90 for vertical reading from bottom to top)
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'bold');
+
+          const centerX = cell.x + cell.width / 2;
+          const centerY = cell.y + 3;
+
+          doc.text(text, centerX, centerY, {
+            angle: -90,
+            align: 'left',
+          });
+
+          // Reset text color for other cells
+          doc.setTextColor(0, 0, 0);
+        }
+      },
     });
 
-    // Footer
+    // Disclaimer legend
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const finalY = (doc as any).lastAutoTable?.finalY || startY + 50;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 38, 38); // Rojo
+    doc.text(
+      'LISTA DE PRECIOS Y EXISTENCIAS SUJETA A CAMBIO SIN PREVIO AVISO',
+      doc.internal.pageSize.getWidth() / 2,
+      finalY + 8,
+      { align: 'center' }
+    );
+
+    // Footer with page numbers
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
