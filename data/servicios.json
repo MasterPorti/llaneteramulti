@@ -1,0 +1,99 @@
+{
+  "servicios": [
+    {
+      "id": "1770745106645-x2wg92g",
+      "nombre": "Parche de llanta",
+      "descripcion": "Reparación de ponchazo con parche",
+      "precioDefault": 80,
+      "codigoBarras": "SRV001",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "extra-material",
+      "nombre": "Extra / Material",
+      "descripcion": "Costo adicional por material o trabajo extra",
+      "precioDefault": 50,
+      "codigoBarras": "SRV002",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-mk8xhh5",
+      "nombre": "Balanceo",
+      "descripcion": "Balanceo de llanta",
+      "precioDefault": 60,
+      "codigoBarras": "SRV003",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-3bk8n1g",
+      "nombre": "Alineación",
+      "descripcion": "Alineación del vehículo",
+      "precioDefault": 350,
+      "codigoBarras": "SRV004",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-f0v9rxk",
+      "nombre": "Rotación de llantas",
+      "descripcion": "Rotación de 4 llantas",
+      "precioDefault": 150,
+      "codigoBarras": "SRV005",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-ztlf52e",
+      "nombre": "Montaje de llanta",
+      "descripcion": "Montaje y desmontaje",
+      "precioDefault": 50,
+      "codigoBarras": "SRV006",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-6ouqt5s",
+      "nombre": "Válvula nueva",
+      "descripcion": "Cambio de válvula",
+      "precioDefault": 30,
+      "codigoBarras": "SRV007",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-4u5cy55",
+      "nombre": "Inflado con nitrógeno",
+      "descripcion": "Inflado con nitrógeno por llanta",
+      "precioDefault": 40,
+      "codigoBarras": "SRV008",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    },
+    {
+      "id": "1770745106645-0y8ykjz",
+      "nombre": "Reparación de rin",
+      "descripcion": "Reparación/enderezado de rin",
+      "precioDefault": 200,
+      "codigoBarras": "SRV009",
+      "activo": true,
+      "createdAt": "2026-02-10T17:38:26.645Z",
+      "updatedAt": "2026-02-10T17:38:26.645Z"
+    }
+  ],
+  "metadata": {
+    "lastUpdated": "2026-02-10T17:38:26.645Z",
+    "version": 1,
+    "initialized": true
+  }
+}

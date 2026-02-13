@@ -1,0 +1,206 @@
+{
+  "ventas": [
+    {
+      "id": "1770745584123-czfjt1d",
+      "folio": "V-0001",
+      "cliente": {
+        "nombre": "Jose Angel",
+        "telefono": "5560305975"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-ztlf52e",
+          "servicioNombre": "Montaje de llanta",
+          "cantidad": 1,
+          "precioUnitario": 50,
+          "subtotal": 50
+        }
+      ],
+      "subtotal": 50,
+      "iva": 8,
+      "total": 58,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-10T17:46:24.123Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-10",
+        "fechaFin": "2026-04-11",
+        "diasGarantia": 60,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-10T17:46:24.123Z",
+      "updatedAt": "2026-02-10T17:46:24.123Z",
+      "cancelada": false
+    },
+    {
+      "id": "1770746110614-i758h3a",
+      "folio": "V-0002",
+      "cliente": {
+        "nombre": "Julio Morales Guerra",
+        "telefono": "556030575"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 555,
+          "subtotal": 555
+        }
+      ],
+      "subtotal": 555,
+      "iva": 0,
+      "total": 555,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-10T17:55:10.614Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-10",
+        "fechaFin": "2026-03-12",
+        "diasGarantia": 30,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-10T17:55:10.614Z",
+      "updatedAt": "2026-02-10T17:55:10.614Z",
+      "cancelada": false
+    },
+    {
+      "id": "1770748944255-gkdzep0",
+      "folio": "V-0003",
+      "cliente": {
+        "nombre": "Juan Gonzales",
+        "telefono": "556053854"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 15,
+          "subtotal": 15
+        }
+      ],
+      "subtotal": 15,
+      "iva": 0,
+      "total": 15,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-10T18:42:24.255Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-10",
+        "fechaFin": "2026-04-11",
+        "diasGarantia": 60,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-10T18:42:24.255Z",
+      "updatedAt": "2026-02-10T18:42:24.255Z",
+      "cancelada": false
+    },
+    {
+      "id": "1770829317727-d69sp3x",
+      "folio": "V-0004",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 80,
+          "subtotal": 80
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "extra-material",
+          "servicioNombre": "Extra / Material",
+          "cantidad": 1,
+          "precioUnitario": 50,
+          "subtotal": 50
+        }
+      ],
+      "subtotal": 130,
+      "iva": 0,
+      "total": 130,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-11T17:01:57.727Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-11",
+        "fechaFin": "2026-02-11",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-11T17:01:57.727Z",
+      "updatedAt": "2026-02-11T17:01:57.727Z",
+      "cancelada": false
+    },
+    {
+      "id": "1770834501073-43sswow",
+      "folio": "V-0005",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 80,
+          "subtotal": 80
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "extra-material",
+          "servicioNombre": "Extra / Material",
+          "cantidad": 1,
+          "precioUnitario": 50,
+          "subtotal": 50
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-mk8xhh5",
+          "servicioNombre": "Balanceo",
+          "cantidad": 1,
+          "precioUnitario": 60,
+          "subtotal": 60
+        }
+      ],
+      "subtotal": 190,
+      "iva": 0,
+      "total": 190,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-11T18:28:21.072Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-11",
+        "fechaFin": "2026-02-11",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-11T18:28:21.072Z",
+      "updatedAt": "2026-02-11T18:28:21.072Z",
+      "cancelada": false
+    }
+  ],
+  "metadata": {
+    "lastUpdated": "2026-02-11T18:28:21.073Z",
+    "ultimoFolio": 5,
+    "version": 1
+  }
+}
