@@ -6,7 +6,10 @@
       "Bash(npx tsc:*)",
       "Bash(npm run lint)",
       "Bash(pip install:*)",
-      "Bash(python scripts/generate_barcodes.py:*)"
+      "Bash(python scripts/generate_barcodes.py:*)",
+      "Bash(dir:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

@@ -30,43 +30,23 @@ const isIOSSafari = () => {
 // Custom save function for iOS Safari compatibility
 const savePDF = (doc: jsPDF, filename: string) => {
   if (isIOSSafari()) {
-    // On iOS Safari, open PDF in new tab using data URL
-    const pdfData = doc.output('dataurlstring');
-    const newWindow = window.open();
-    if (newWindow) {
-      newWindow.document.write(`
-        <html>
-          <head>
-            <title>${filename}</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body { margin: 0; padding: 0; }
-              iframe { width: 100%; height: 100vh; border: none; }
-              .download-hint {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                background: #3b82f6;
-                color: white;
-                padding: 12px;
-                text-align: center;
-                font-family: system-ui, -apple-system, sans-serif;
-                font-size: 14px;
-                z-index: 1000;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="download-hint">
-              Toca y mantén presionado el PDF para guardarlo, o usa el botón de compartir
-            </div>
-            <iframe src="${pdfData}"></iframe>
-          </body>
-        </html>
-      `);
-      newWindow.document.close();
-    }
+    // On iOS Safari, use Blob URL + anchor click for reliable downloads.
+    // window.open() with data URIs fails because:
+    // 1. Pop-up blocker blocks window.open() after async calls (server action breaks user gesture chain)
+    // 2. iOS Safari restricts data: URIs in iframes/new windows
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    // Cleanup after a short delay to ensure download starts
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
   } else {
     // Normal download for other browsers
     doc.save(filename);
