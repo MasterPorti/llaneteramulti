@@ -196,11 +196,67 @@
       "createdAt": "2026-02-11T18:28:21.072Z",
       "updatedAt": "2026-02-11T18:28:21.072Z",
       "cancelada": false
+    },
+    {
+      "id": "1770998541706-nqakugz",
+      "folio": "V-0006",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 80,
+          "subtotal": 80
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-3bk8n1g",
+          "servicioNombre": "Alineación",
+          "cantidad": 1,
+          "precioUnitario": 350,
+          "subtotal": 350
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-f0v9rxk",
+          "servicioNombre": "Rotación de llantas",
+          "cantidad": 1,
+          "precioUnitario": 150,
+          "subtotal": 150
+        }
+      ],
+      "subtotal": 580,
+      "iva": 0,
+      "total": 580,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-13T16:02:21.706Z",
+      "ticketGenerado": true,
+      "facturada": true,
+      "garantia": {
+        "fechaInicio": "2026-02-13",
+        "fechaFin": "2026-02-13",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-13T16:02:21.706Z",
+      "updatedAt": "2026-02-13T16:07:03.551Z",
+      "cancelada": false,
+      "factura": {
+        "uuid": "FAC-1770998823548",
+        "serie": "A",
+        "folio": "9131",
+        "fechaTimbrado": "2026-02-13T16:07:03.548Z"
+      }
     }
   ],
   "metadata": {
-    "lastUpdated": "2026-02-11T18:28:21.073Z",
-    "ultimoFolio": 5,
+    "lastUpdated": "2026-02-13T16:07:03.552Z",
+    "ultimoFolio": 6,
     "version": 1
   }
 }

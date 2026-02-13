@@ -61,45 +61,79 @@ export default async function VentaDetallePage({ params }: Props) {
               <h2 className="font-semibold">Items de la Venta</h2>
             </CardHeader>
             <CardBody className="p-0">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Concepto</th>
-                    <th>Detalle</th>
-                    <th>Cantidad</th>
-                    <th>Precio Unit.</th>
-                    <th>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {venta.items.map((item, index) => (
-                    <tr key={index}>
-                      {item.tipo === 'producto' ? (
-                        <>
-                          <td className="font-medium">
-                            {item.llantaSnapshot.marca} {item.llantaSnapshot.modelo}
-                          </td>
-                          <td className="font-mono text-sm">{item.llantaSnapshot.medida}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="font-medium">{item.servicioNombre}</td>
-                          <td className="text-sm text-gray-500">Servicio</td>
-                        </>
-                      )}
-                      <td>{item.cantidad}</td>
-                      <td>{formatCurrency(item.precioUnitario)}</td>
-                      <td className="font-medium">{formatCurrency(item.subtotal)}</td>
+              {/* Mobile view - card layout */}
+              <div className="md:hidden">
+                {venta.items.map((item, index) => (
+                  <div key={index} className="p-4 border-b border-gray-100 last:border-b-0">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        {item.tipo === 'producto' ? (
+                          <>
+                            <p className="font-medium">{item.llantaSnapshot.marca} {item.llantaSnapshot.modelo}</p>
+                            <p className="text-sm text-gray-500 font-mono">{item.llantaSnapshot.medida}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-medium">{item.servicioNombre}</p>
+                            <p className="text-sm text-gray-500">Servicio</p>
+                          </>
+                        )}
+                      </div>
+                      <p className="font-medium text-right">{formatCurrency(item.subtotal)}</p>
+                    </div>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>{item.cantidad} x {formatCurrency(item.precioUnitario)}</span>
+                    </div>
+                  </div>
+                ))}
+                <div className="p-4 bg-gray-50 flex justify-between items-center">
+                  <span className="font-bold text-lg">Total:</span>
+                  <span className="font-bold text-lg">{formatCurrency(venta.total)}</span>
+                </div>
+              </div>
+
+              {/* Desktop view - table layout */}
+              <div className="hidden md:block">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Concepto</th>
+                      <th>Detalle</th>
+                      <th>Cantidad</th>
+                      <th>Precio Unit.</th>
+                      <th>Subtotal</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={4} className="text-right font-bold text-lg">Total:</td>
-                    <td className="font-bold text-lg">{formatCurrency(venta.total)}</td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </thead>
+                  <tbody>
+                    {venta.items.map((item, index) => (
+                      <tr key={index}>
+                        {item.tipo === 'producto' ? (
+                          <>
+                            <td className="font-medium">
+                              {item.llantaSnapshot.marca} {item.llantaSnapshot.modelo}
+                            </td>
+                            <td className="font-mono text-sm">{item.llantaSnapshot.medida}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="font-medium">{item.servicioNombre}</td>
+                            <td className="text-sm text-gray-500">Servicio</td>
+                          </>
+                        )}
+                        <td>{item.cantidad}</td>
+                        <td>{formatCurrency(item.precioUnitario)}</td>
+                        <td className="font-medium">{formatCurrency(item.subtotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={4} className="text-right font-bold text-lg">Total:</td>
+                      <td className="font-bold text-lg">{formatCurrency(venta.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </CardBody>
           </Card>
 
@@ -192,8 +226,8 @@ export default async function VentaDetallePage({ params }: Props) {
             <CardHeader>
               <h2 className="font-semibold">Vista Previa del Ticket</h2>
             </CardHeader>
-            <CardBody>
-              <div className="bg-white p-4 border text-xs">
+            <CardBody className="p-2 md:p-4">
+              <div className="ticket-preview-container">
                 <TicketPrint venta={venta} />
               </div>
             </CardBody>

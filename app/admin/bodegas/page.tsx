@@ -25,11 +25,12 @@ export default function BodegasPage() {
 
   // Busqueda
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaDetalle, setBusquedaDetalle] = useState('');
 
   // Modal mover
   const [moverProducto, setMoverProducto] = useState<Llanta | null>(null);
   const [moverDestino, setMoverDestino] = useState<BodegaId | ''>('');
-  const [moverCantidad, setMoverCantidad] = useState(1);
+  const [moverCantidadStr, setMoverCantidadStr] = useState('1');
 
   const loadInventario = useCallback(async () => {
     setLoading(true);
@@ -79,6 +80,7 @@ export default function BodegasPage() {
   const abrirBodega = (bodegaId: BodegaId) => {
     setBodegaActiva(bodegaId);
     setVista('detalle');
+    setBusquedaDetalle('');
     setError('');
     setSuccessMsg('');
   };
@@ -87,6 +89,7 @@ export default function BodegasPage() {
     setVista('bodegas');
     setBodegaActiva(null);
     setMoverProducto(null);
+    setBusquedaDetalle('');
     setError('');
     setSuccessMsg('');
   };
@@ -94,7 +97,7 @@ export default function BodegasPage() {
   const abrirMover = (llanta: Llanta) => {
     setMoverProducto(llanta);
     setMoverDestino('');
-    setMoverCantidad(1);
+    setMoverCantidadStr('1');
     setError('');
     setSuccessMsg('');
   };
@@ -102,19 +105,21 @@ export default function BodegasPage() {
   const cerrarMover = () => {
     setMoverProducto(null);
     setMoverDestino('');
-    setMoverCantidad(1);
+    setMoverCantidadStr('1');
   };
 
   const handleMover = async () => {
     if (!moverProducto || !bodegaActiva || !moverDestino) return;
 
-    if (moverCantidad <= 0) {
+    const cantidad = parseInt(moverCantidadStr) || 0;
+
+    if (cantidad <= 0) {
       setError('La cantidad debe ser mayor a 0');
       return;
     }
 
     const stockDisponible = moverProducto.stockPorBodega[bodegaActiva] || 0;
-    if (moverCantidad > stockDisponible) {
+    if (cantidad > stockDisponible) {
       setError(`Solo hay ${stockDisponible} unidades disponibles`);
       return;
     }
@@ -126,11 +131,11 @@ export default function BodegasPage() {
       moverProducto.id,
       bodegaActiva,
       moverDestino as BodegaId,
-      moverCantidad
+      cantidad
     );
 
     if (result.success) {
-      setSuccessMsg(`${moverCantidad} unidad(es) de ${moverProducto.marca} ${moverProducto.modelo} movidas a ${getBodegaNombre(moverDestino as BodegaId)}`);
+      setSuccessMsg(`${cantidad} unidad(es) de ${moverProducto.marca} ${moverProducto.modelo} movidas a ${getBodegaNombre(moverDestino as BodegaId)}`);
       cerrarMover();
       await loadInventario();
     } else {
@@ -161,7 +166,18 @@ export default function BodegasPage() {
 
   // VISTA: Detalle de bodega
   if (vista === 'detalle' && bodegaActiva) {
-    const productos = getProductosEnBodega(bodegaActiva);
+    const todosProductos = getProductosEnBodega(bodegaActiva);
+    const productos = busquedaDetalle.trim()
+      ? todosProductos.filter((l) => {
+          const term = busquedaDetalle.toLowerCase();
+          return (
+            l.marca.toLowerCase().includes(term) ||
+            l.modelo.toLowerCase().includes(term) ||
+            l.medida.toLowerCase().includes(term) ||
+            `${l.marca} ${l.modelo}`.toLowerCase().includes(term)
+          );
+        })
+      : todosProductos;
     const totalItems = getTotalItemsBodega(bodegaActiva);
     const valor = getValorBodega(bodegaActiva);
 
@@ -169,7 +185,7 @@ export default function BodegasPage() {
       <div>
         <PageHeader
           title={getBodegaNombre(bodegaActiva)}
-          subtitle={`${productos.length} productos / ${totalItems} unidades / ${formatCurrency(valor)} valor`}
+          subtitle={`${todosProductos.length} productos / ${totalItems} unidades / ${formatCurrency(valor)} valor`}
           breadcrumbs={[
             { label: 'Admin', href: '/admin' },
             { label: 'Bodegas', href: '/admin/bodegas' },
@@ -199,12 +215,32 @@ export default function BodegasPage() {
           </div>
         )}
 
-        {/* Move modal/panel */}
+        {/* Buscador */}
+        <div className="mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              className="input"
+              style={{ paddingLeft: '2.5rem' }}
+              placeholder="Buscar por marca, modelo o medida..."
+              value={busquedaDetalle}
+              onChange={(e) => setBusquedaDetalle(e.target.value)}
+            />
+          </div>
+          {busquedaDetalle.trim() && (
+            <p className="text-sm text-gray-500 mt-2">
+              Mostrando {productos.length} de {todosProductos.length} productos
+            </p>
+          )}
+        </div>
+
+        {/* Move modal/panel - desktop only */}
         {moverProducto && (
-          <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
+          <div className="hidden md:block mb-6 p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
-                <MoveRight className="w-5 h-5 text-amber-600" />
+                <MoveRight className="w-5 h-5 text-amber-600 shrink-0" />
                 <div>
                   <h3 className="font-semibold">
                     Mover: {moverProducto.marca} {moverProducto.modelo}
@@ -214,12 +250,12 @@ export default function BodegasPage() {
                   </p>
                 </div>
               </div>
-              <button type="button" onClick={cerrarMover} className="p-1 hover:bg-amber-100 rounded">
+              <button type="button" onClick={cerrarMover} className="p-1 hover:bg-amber-100 rounded shrink-0">
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
 
-            <div className="flex items-end gap-4">
+            <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4">
               <div className="flex-1">
                 <label className="label">Mover a</label>
                 <select
@@ -235,22 +271,25 @@ export default function BodegasPage() {
                   ))}
                 </select>
               </div>
-              <div className="w-28">
+              <div className="w-full md:w-28">
                 <label className="label">Cantidad</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   className="input"
-                  min={1}
-                  max={moverProducto.stockPorBodega[bodegaActiva] || 0}
-                  value={moverCantidad}
-                  onChange={(e) => setMoverCantidad(parseInt(e.target.value) || 1)}
+                  value={moverCantidadStr}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    setMoverCantidadStr(val);
+                  }}
+                  placeholder="1"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleMover}
-                disabled={moviendo || !moverDestino || moverCantidad <= 0}
-                className="btn btn-primary flex items-center gap-2"
+                disabled={moviendo || !moverDestino || !moverCantidadStr || parseInt(moverCantidadStr) <= 0}
+                className="btn btn-primary flex items-center justify-center gap-2 w-full md:w-auto"
               >
                 {moviendo ? (
                   <>
@@ -281,59 +320,175 @@ export default function BodegasPage() {
         ) : (
           <Card>
             <CardBody className="p-0">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Producto</th>
-                    <th>Medida</th>
-                    <th>Precio Venta</th>
-                    <th>Unidades</th>
-                    <th>Valor</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productos.map((llanta) => {
-                    const stock = llanta.stockPorBodega[bodegaActiva] || 0;
-                    return (
-                      <tr key={llanta.id} className="hover:bg-gray-50">
-                        <td>
-                          <div>
-                            <p className="font-medium">{llanta.marca} {llanta.modelo}</p>
-                            <p className="text-xs text-gray-500">{llanta.proveedor}</p>
+              {/* Mobile view - card layout */}
+              <div className="md:hidden">
+                {productos.map((llanta) => {
+                  const stock = llanta.stockPorBodega[bodegaActiva] || 0;
+                  const isMoving = moverProducto?.id === llanta.id;
+                  return (
+                    <div key={llanta.id} className="p-4 border-b border-gray-100 last:border-b-0">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-medium">{llanta.marca} {llanta.modelo}</p>
+                          <p className="text-sm text-gray-500">{llanta.proveedor}</p>
+                          <p className="text-sm text-gray-500 font-mono">{llanta.medida}</p>
+                        </div>
+                        <Badge variant={stock > 5 ? 'success' : stock > 2 ? 'warning' : 'danger'}>
+                          {stock} uds
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <div>
+                          <span className="text-gray-500">Precio: </span>
+                          <span>{formatCurrency(llanta.precioVenta)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Valor: </span>
+                          <span className="font-medium">{formatCurrency(stock * llanta.precioVenta)}</span>
+                        </div>
+                      </div>
+
+                      {/* Mobile inline move panel */}
+                      {isMoving ? (
+                        <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <MoveRight className="w-4 h-4 text-amber-600" />
+                              <span className="font-medium text-sm">Mover {stock} disponibles</span>
+                            </div>
+                            <button type="button" onClick={cerrarMover} className="p-1 hover:bg-amber-100 rounded">
+                              <X className="w-4 h-4 text-gray-500" />
+                            </button>
                           </div>
-                        </td>
-                        <td className="font-mono">{llanta.medida}</td>
-                        <td>{formatCurrency(llanta.precioVenta)}</td>
-                        <td>
-                          <Badge variant={stock > 5 ? 'success' : stock > 2 ? 'warning' : 'danger'}>
-                            {stock}
-                          </Badge>
-                        </td>
-                        <td className="font-medium">{formatCurrency(stock * llanta.precioVenta)}</td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => abrirMover(llanta)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
-                          >
-                            <MoveRight className="w-3.5 h-3.5" />
-                            Mover
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-gray-100 font-bold">
-                    <td colSpan={3}>TOTAL</td>
-                    <td>{totalItems}</td>
-                    <td>{formatCurrency(valor)}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
+
+                          <div className="space-y-3">
+                            <div>
+                              <label className="label">Destino</label>
+                              <select
+                                className="select"
+                                value={moverDestino}
+                                onChange={(e) => setMoverDestino(e.target.value as BodegaId)}
+                              >
+                                <option value="" disabled>Seleccionar bodega</option>
+                                {BODEGAS.filter((b) => b.id !== bodegaActiva).map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.nombre} ({llanta.stockPorBodega[b.id] || 0} actuales)
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="label">Cantidad</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                className="input"
+                                value={moverCantidadStr}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/[^0-9]/g, '');
+                                  setMoverCantidadStr(val);
+                                }}
+                                placeholder="1"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleMover}
+                              disabled={moviendo || !moverDestino || !moverCantidadStr || parseInt(moverCantidadStr) <= 0}
+                              className="btn btn-primary w-full flex items-center justify-center gap-2"
+                            >
+                              {moviendo ? (
+                                <>
+                                  <span className="spinner" />
+                                  Moviendo...
+                                </>
+                              ) : (
+                                <>
+                                  <ArrowRight className="w-4 h-4" />
+                                  Mover
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => abrirMover(llanta)}
+                          className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                        >
+                          <MoveRight className="w-4 h-4" />
+                          Mover a otra bodega
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="p-4 bg-gray-50 flex justify-between items-center">
+                  <div>
+                    <span className="font-bold">Total: </span>
+                    <span>{totalItems} unidades</span>
+                  </div>
+                  <span className="font-bold text-lg">{formatCurrency(valor)}</span>
+                </div>
+              </div>
+
+              {/* Desktop view - table layout */}
+              <div className="hidden md:block">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Medida</th>
+                      <th>Precio Venta</th>
+                      <th>Unidades</th>
+                      <th>Valor</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productos.map((llanta) => {
+                      const stock = llanta.stockPorBodega[bodegaActiva] || 0;
+                      return (
+                        <tr key={llanta.id} className="hover:bg-gray-50">
+                          <td>
+                            <div>
+                              <p className="font-medium">{llanta.marca} {llanta.modelo}</p>
+                              <p className="text-xs text-gray-500">{llanta.proveedor}</p>
+                            </div>
+                          </td>
+                          <td className="font-mono">{llanta.medida}</td>
+                          <td>{formatCurrency(llanta.precioVenta)}</td>
+                          <td>
+                            <Badge variant={stock > 5 ? 'success' : stock > 2 ? 'warning' : 'danger'}>
+                              {stock}
+                            </Badge>
+                          </td>
+                          <td className="font-medium">{formatCurrency(stock * llanta.precioVenta)}</td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => abrirMover(llanta)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                            >
+                              <MoveRight className="w-3.5 h-3.5" />
+                              Mover
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-100 font-bold">
+                      <td colSpan={3}>TOTAL</td>
+                      <td>{totalItems}</td>
+                      <td>{formatCurrency(valor)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </CardBody>
           </Card>
         )}
