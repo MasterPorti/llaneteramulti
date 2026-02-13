@@ -17,6 +17,62 @@ const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
+// Detect iOS Safari
+const isIOSSafari = () => {
+  if (typeof window === 'undefined') return false;
+  const ua = window.navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua);
+  const webkit = /WebKit/.test(ua);
+  const notChrome = !/CriOS/.test(ua);
+  return iOS && webkit && notChrome;
+};
+
+// Custom save function for iOS Safari compatibility
+const savePDF = (doc: jsPDF, filename: string) => {
+  if (isIOSSafari()) {
+    // On iOS Safari, open PDF in new tab using data URL
+    const pdfData = doc.output('dataurlstring');
+    const newWindow = window.open();
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>${filename}</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { margin: 0; padding: 0; }
+              iframe { width: 100%; height: 100vh; border: none; }
+              .download-hint {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: #3b82f6;
+                color: white;
+                padding: 12px;
+                text-align: center;
+                font-family: system-ui, -apple-system, sans-serif;
+                font-size: 14px;
+                z-index: 1000;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="download-hint">
+              Toca y mantén presionado el PDF para guardarlo, o usa el botón de compartir
+            </div>
+            <iframe src="${pdfData}"></iframe>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
+  } else {
+    // Normal download for other browsers
+    doc.save(filename);
+  }
+};
+
 export function DescargasSection() {
   const [loading, setLoading] = useState<string | null>(null);
   const [bodegaCatalogo, setBodegaCatalogo] = useState<BodegaId | ''>('');
@@ -173,7 +229,7 @@ export function DescargasSection() {
       },
     });
 
-    doc.save(`inventario-completo-${new Date().toISOString().split('T')[0]}.pdf`);
+    savePDF(doc, `inventario-completo-${new Date().toISOString().split('T')[0]}.pdf`);
     setLoading(null);
   };
 
@@ -274,7 +330,7 @@ export function DescargasSection() {
     }
 
     const bodegaSlug = data.bodegaFiltro?.toLowerCase().replace(/\s+/g, '-') || 'todas';
-    doc.save(`catalogo-${bodegaSlug}-${new Date().toISOString().split('T')[0]}.pdf`);
+    savePDF(doc, `catalogo-${bodegaSlug}-${new Date().toISOString().split('T')[0]}.pdf`);
     setLoading(null);
   };
 
