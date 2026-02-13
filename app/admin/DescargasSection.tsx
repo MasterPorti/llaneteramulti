@@ -28,25 +28,31 @@ const isIOSSafari = () => {
 };
 
 // Custom save function for iOS Safari compatibility
-const savePDF = (doc: jsPDF, filename: string) => {
+const savePDF = async (doc: jsPDF, filename: string) => {
   if (isIOSSafari()) {
-    // On iOS Safari, use Blob URL + anchor click for reliable downloads.
-    // window.open() with data URIs fails because:
-    // 1. Pop-up blocker blocks window.open() after async calls (server action breaks user gesture chain)
-    // 2. iOS Safari restricts data: URIs in iframes/new windows
+    // iOS Safari ignores the `download` attribute on anchor tags,
+    // so we use the Web Share API which triggers the native iOS share sheet
+    // letting the user save to Files, share via WhatsApp, AirDrop, etc.
     const blob = doc.output('blob');
+    const file = new File([blob], filename, { type: 'application/pdf' });
+
+    if (navigator.share && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: filename,
+        });
+        return;
+      } catch (err) {
+        // User cancelled share - that's fine, no fallback needed
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: open PDF in new tab so user can use Safari's share button
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    // Cleanup after a short delay to ensure download starts
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 100);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   } else {
     // Normal download for other browsers
     doc.save(filename);
@@ -209,7 +215,7 @@ export function DescargasSection() {
       },
     });
 
-    savePDF(doc, `inventario-completo-${new Date().toISOString().split('T')[0]}.pdf`);
+    await savePDF(doc, `inventario-completo-${new Date().toISOString().split('T')[0]}.pdf`);
     setLoading(null);
   };
 
@@ -310,7 +316,7 @@ export function DescargasSection() {
     }
 
     const bodegaSlug = data.bodegaFiltro?.toLowerCase().replace(/\s+/g, '-') || 'todas';
-    savePDF(doc, `catalogo-${bodegaSlug}-${new Date().toISOString().split('T')[0]}.pdf`);
+    await savePDF(doc, `catalogo-${bodegaSlug}-${new Date().toISOString().split('T')[0]}.pdf`);
     setLoading(null);
   };
 
