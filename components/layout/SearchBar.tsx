@@ -127,7 +127,7 @@ export function SearchBar({ servicios = [] }: SearchBarProps) {
           }}
           onBlur={() => setIsFocused(false)}
           placeholder="Buscar llantas, servicios..."
-          className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
+          className="flex-1 bg-transparent outline-none text-base md:text-sm text-gray-700 placeholder-gray-400"
         />
         {loading && <span className="spinner" />}
         {query && !loading && (
