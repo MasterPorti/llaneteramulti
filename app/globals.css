@@ -534,6 +534,21 @@ body {
   }
 }
 
+/* iOS Safari zoom fix - inputs with font-size < 16px trigger auto-zoom on focus */
+@media screen and (max-width: 767px) {
+  .input,
+  .select,
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  textarea {
+    font-size: 1rem !important;
+  }
+}
+
 /* Loading spinner */
 .spinner {
   width: 1rem;
