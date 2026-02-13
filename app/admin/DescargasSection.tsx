@@ -244,20 +244,20 @@ export function DescargasSection() {
     let rows: string[][];
 
     if (data.bodegaFiltro) {
-      headers = ['Producto', 'Medida', 'Rin', 'Precio', 'Stock'];
+      headers = ['Cód. Aux.', 'Producto', 'Medida', 'Precio', 'Stock'];
       rows = data.productos.map(p => [
+        p.codigoAuxiliar,
         `${p.marca} ${p.modelo}`,
         p.medida,
-        `R${p.rin}`,
         formatCurrency(p.precioVenta),
         p.stock.toString(),
       ]);
     } else {
-      headers = ['Producto', 'Medida', 'Rin', 'Precio', 'Total', ...data.bodegas.map(b => b.nombre)];
+      headers = ['Cód. Aux.', 'Producto', 'Medida', 'Precio', 'Total', ...data.bodegas.map(b => b.nombre)];
       rows = data.productos.map(p => [
+        p.codigoAuxiliar,
         `${p.marca} ${p.modelo}`,
         p.medida,
-        `R${p.rin}`,
         formatCurrency(p.precioVenta),
         p.stock.toString(),
         ...data.bodegas.map(b => (p.stockPorBodega?.[b.id] || 0).toString()),
@@ -267,18 +267,18 @@ export function DescargasSection() {
     // Different column styles based on orientation
     const columnStyles = data.bodegaFiltro
       ? {
-          0: { cellWidth: 60 }, // Producto
-          1: { cellWidth: 30 }, // Medida
-          2: { cellWidth: 20, halign: 'center' as const }, // Rin
-          3: { cellWidth: 30, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
-          4: { cellWidth: 20, halign: 'center' as const, fontStyle: 'bold' as const }, // Stock
+          0: { cellWidth: 25, halign: 'center' as const }, // Cód. Aux.
+          1: { cellWidth: 55 }, // Producto
+          2: { cellWidth: 28 }, // Medida
+          3: { cellWidth: 28, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
+          4: { cellWidth: 18, halign: 'center' as const, fontStyle: 'bold' as const }, // Stock
         }
       : {
-          0: { cellWidth: 50 }, // Producto
-          1: { cellWidth: 25 }, // Medida
-          2: { cellWidth: 15, halign: 'center' as const }, // Rin
-          3: { cellWidth: 25, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
-          4: { cellWidth: 15, halign: 'center' as const, fontStyle: 'bold' as const }, // Total
+          0: { cellWidth: 22, halign: 'center' as const }, // Cód. Aux.
+          1: { cellWidth: 45 }, // Producto
+          2: { cellWidth: 22 }, // Medida
+          3: { cellWidth: 22, halign: 'right' as const, fontStyle: 'bold' as const }, // Precio
+          4: { cellWidth: 14, halign: 'center' as const, fontStyle: 'bold' as const }, // Total
           // Bodegas columns will auto-size
         };
 

@@ -29,6 +29,7 @@ export interface InventarioData {
 
 export interface CatalogoData {
   productos: Array<{
+    codigoAuxiliar: string;
     marca: string;
     modelo: string;
     medida: string;
@@ -43,6 +44,31 @@ export interface CatalogoData {
     productos: number;
     unidades: number;
   };
+}
+
+// Genera código auxiliar a partir de la medida
+// Ejemplos: "205/55R16" -> "205 55 16", "10.00R20" -> "10 00 20"
+function generarCodigoAuxiliar(medida: string): string {
+  // Remove any leading/trailing whitespace
+  const cleaned = medida.trim().toUpperCase();
+
+  // Try to parse format like "205/55R16"
+  const match1 = cleaned.match(/^(\d+)\/(\d+)R(\d+)$/i);
+  if (match1) {
+    return `${match1[1]} ${match1[2]} ${match1[3]}`;
+  }
+
+  // Try to parse format like "10.00R20" or "10R20"
+  const match2 = cleaned.match(/^(\d+)(?:\.(\d+))?R(\d+)$/i);
+  if (match2) {
+    const part1 = match2[1];
+    const part2 = match2[2] || '00';
+    const part3 = match2[3];
+    return `${part1} ${part2} ${part3}`;
+  }
+
+  // Fallback: just replace common separators with spaces
+  return cleaned.replace(/[\/\.\-R]/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
 export async function obtenerDatosInventario(): Promise<{ success: boolean; data?: InventarioData; error?: string }> {
@@ -102,6 +128,7 @@ export async function obtenerDatosCatalogo(bodegaId?: BodegaId | ''): Promise<{ 
 
   const productos = inventario.map((llanta) => {
     const base = {
+      codigoAuxiliar: generarCodigoAuxiliar(llanta.medida),
       marca: llanta.marca,
       modelo: llanta.modelo,
       medida: llanta.medida,
