@@ -46,7 +46,7 @@ export function FacturarVentaButton({ id }: Props) {
       >
         <p>¿Deseas generar la factura (CFDI) para esta venta?</p>
         <p className="text-sm text-gray-500 mt-2">
-          Se utilizará la integración con Factura Digital configurada.
+          Se utilizará la integración con Factura Digital configurada
         </p>
       </Modal>
     </>

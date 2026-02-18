@@ -9,7 +9,10 @@
       "Bash(python scripts/generate_barcodes.py:*)",
       "Bash(dir:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(cmd //c \"rename \"\"\\(sistema\\)\"\" sistema\")",
+      "Bash(powershell -Command:*)"
     ]
   }
 }
