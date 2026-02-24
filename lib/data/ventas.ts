@@ -97,6 +97,41 @@ export async function crearVenta(input: VentaInput): Promise<Venta> {
       };
       items.push(ventaItem);
       subtotal += itemSubtotal;
+    } else if (item.tipo === 'catalogo') {
+      const { obtenerProducto, ajustarStockProducto } = await import('./productos');
+      const producto = await obtenerProducto(item.id);
+      if (!producto) throw new Error(`Producto no encontrado`);
+      if (producto.stock < item.cantidad) throw new Error(`Stock insuficiente de "${producto.nombre}"`);
+
+      await ajustarStockProducto(item.id, -(item.cantidad));
+
+      const precio = item.precioCustom ?? producto.precio;
+      const itemSubtotal = precio * item.cantidad;
+
+      const ventaItem: VentaItemServicio = {
+        tipo: 'servicio',
+        servicioId: `producto-${item.id}`,
+        servicioNombre: producto.nombre,
+        cantidad: item.cantidad,
+        precioUnitario: precio,
+        subtotal: itemSubtotal,
+      };
+      items.push(ventaItem);
+      subtotal += itemSubtotal;
+    } else if (item.tipo === 'extra') {
+      const precio = item.precioCustom ?? 0;
+      const itemSubtotal = precio * item.cantidad;
+
+      const ventaItem: VentaItemServicio = {
+        tipo: 'servicio',
+        servicioId: 'extra',
+        servicioNombre: item.nombre || 'Producto',
+        cantidad: item.cantidad,
+        precioUnitario: precio,
+        subtotal: itemSubtotal,
+      };
+      items.push(ventaItem);
+      subtotal += itemSubtotal;
     } else {
       const servicio = await obtenerServicio(item.id);
       if (!servicio) {

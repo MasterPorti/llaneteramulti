@@ -1,9 +1,158 @@
 {
-  "ventas": [],
+  "ventas": [
+    {
+      "id": "1771952344363-jkyjsc8",
+      "folio": "SI-0001",
+      "cliente": {
+        "nombre": "Julio Morales Guerra"
+      },
+      "items": [
+        {
+          "llantaId": "si-llanta-004",
+          "bodega": "bodega-2",
+          "llantaSnapshot": {
+            "marca": "Pirelli",
+            "modelo": "P Zero",
+            "medida": "245/40R18",
+            "codigoAuxiliar": "245 40 18"
+          },
+          "cantidad": 2,
+          "precioUnitario": 2800,
+          "subtotal": 5600
+        }
+      ],
+      "subtotal": 5600,
+      "total": 5600,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-24T16:59:04.358Z",
+      "garantia": {
+        "id": "GAR-2026-0001",
+        "fechaInicio": "2026-02-24",
+        "fechaFin": "2026-04-25",
+        "diasGarantia": 60,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso, pinchazos, o desgaste normal.",
+        "activa": true
+      },
+      "createdAt": "2026-02-24T16:59:04.358Z",
+      "updatedAt": "2026-02-24T16:59:04.358Z",
+      "cancelada": false
+    },
+    {
+      "id": "1771953139447-xp2baq1",
+      "folio": "SI-0002",
+      "cliente": {
+        "nombre": "Manuel Gonzales"
+      },
+      "items": [
+        {
+          "llantaId": "si-llanta-001",
+          "bodega": "bodega-1",
+          "llantaSnapshot": {
+            "marca": "Bridgestone",
+            "modelo": "Ecopia EP150",
+            "medida": "205/55R16",
+            "codigoAuxiliar": "205 55 16"
+          },
+          "cantidad": 4,
+          "precioUnitario": 1200,
+          "subtotal": 4800
+        }
+      ],
+      "subtotal": 4800,
+      "total": 4800,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-24T17:12:19.444Z",
+      "garantia": {
+        "id": "GAR-2026-0002",
+        "fechaInicio": "2026-02-24",
+        "fechaFin": "2026-04-25",
+        "diasGarantia": 60,
+        "condiciones": "Esta garantía cubre los siguientes defectos:\n1. Defectos de fabricación que afecten la estructura interna de la llanta.\n2. Separación de capas o desprendimiento de la banda de rodamiento por causas de fabricación.\n3. Burbujas o deformaciones visibles no causadas por impacto externo.\n4. Fallas en el talón (bead) que impidan el montaje correcto.\n5. Irregularidades en el equilibrio originadas en fábrica.\n6. Cualquier defecto de fabricación certificado por el vendedor.\n\nLa garantía NO aplica en los siguientes casos:\n1. Pinchazos, cortes o daños por objetos externos.\n2. Desgaste normal por uso, incluyendo desgaste irregular por mal alineamiento o balance.\n3. Daños causados por sobrecarga, presión incorrecta o conducción sobre obstáculos.\n4. Reparaciones realizadas por terceros no autorizados.\n5. Daños por incendio, accidente o causas de fuerza mayor.\n6. Uso en competencias, off-road o condiciones fuera de las especificadas para la llanta.\n7. Llantas con número de serie alterado, raspado o ilegible.\n\nPara hacer válida esta garantía preséntese con este documento en el punto de venta.",
+        "activa": true
+      },
+      "createdAt": "2026-02-24T17:12:19.444Z",
+      "updatedAt": "2026-02-24T17:12:19.444Z",
+      "cancelada": false
+    },
+    {
+      "id": "1771953988686-5jpo9f0",
+      "folio": "SI-0003",
+      "cliente": {
+        "nombre": "Jose Antonio Lopez"
+      },
+      "items": [
+        {
+          "llantaId": "si-llanta-005",
+          "bodega": "bodega-1",
+          "llantaSnapshot": {
+            "marca": "Goodyear",
+            "modelo": "Assurance WeatherReady",
+            "medida": "215/60R16",
+            "codigoAuxiliar": "215 60 16"
+          },
+          "cantidad": 10,
+          "precioUnitario": 1350,
+          "subtotal": 13500
+        }
+      ],
+      "subtotal": 13500,
+      "total": 13500,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-24T17:26:28.683Z",
+      "garantia": {
+        "id": "GAR-2026-0003",
+        "fechaInicio": "2026-02-24",
+        "fechaFin": "2026-04-25",
+        "diasGarantia": 60,
+        "condiciones": "TÉRMINOS Y CONDICIONES DE GARANTÍA\nToda llanta que ostente marca y serie, siempre que sea utilizada en condiciones normales, está garantizada por 60 días contra defectos de fabricación, de acuerdo con las siguientes condiciones.\n\nPARA HACER VÁLIDA ESTA GARANTÍA:\n1. Factura o nota de compra de la llanta\n2. Identificación oficial (INE)\n3. Formato de garantía\n\nLA GARANTÍA NO ES VÁLIDA PARA:\n1. Llantas reparadas\n2. Rodadas con baja presión\n3. Rodadas con alta presión\n4. Cortadas con objeto punzocortante\n5. Impacto en costados (banquetazos)\n6. Impacto por baches\n7. Exceso de carga",
+        "activa": true
+      },
+      "createdAt": "2026-02-24T17:26:28.683Z",
+      "updatedAt": "2026-02-24T17:26:28.683Z",
+      "cancelada": false
+    },
+    {
+      "id": "1771954650449-7ubqpga",
+      "folio": "SI-0004",
+      "cliente": {
+        "nombre": "Miguel Gonzales Lopez"
+      },
+      "items": [
+        {
+          "llantaId": "si-llanta-007",
+          "bodega": "bodega-1",
+          "llantaSnapshot": {
+            "marca": "Yokohama",
+            "modelo": "AVID Ascend GT",
+            "medida": "185/65R15",
+            "codigoAuxiliar": "185 65 15"
+          },
+          "cantidad": 1,
+          "precioUnitario": 1050,
+          "subtotal": 1050
+        }
+      ],
+      "subtotal": 1050,
+      "total": 1050,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-24T17:37:30.445Z",
+      "garantia": {
+        "id": "GAR-2026-0004",
+        "fechaInicio": "2026-02-24",
+        "fechaFin": "2026-08-23",
+        "diasGarantia": 180,
+        "condiciones": "TÉRMINOS Y CONDICIONES DE GARANTÍA\nToda llanta que ostente marca y serie, siempre que sea utilizada en condiciones normales, está garantizada por 6 meses contra defectos de fabricación, de acuerdo con las siguientes condiciones.\n\nPARA HACER VÁLIDA ESTA GARANTÍA:\n1. Factura o nota de compra de la llanta\n2. Identificación oficial (INE)\n3. Formato de garantía\n\nLA GARANTÍA NO ES VÁLIDA PARA:\n1. Llantas reparadas\n2. Rodadas con baja presión\n3. Rodadas con alta presión\n4. Cortadas con objeto punzocortante\n5. Impacto en costados (banquetazos)\n6. Impacto por baches\n7. Exceso de carga",
+        "activa": true
+      },
+      "createdAt": "2026-02-24T17:37:30.445Z",
+      "updatedAt": "2026-02-24T17:37:30.445Z",
+      "cancelada": false
+    }
+  ],
   "metadata": {
-    "lastUpdated": "2026-02-17T00:00:00.000Z",
-    "ultimoFolio": 0,
-    "ultimoGarantiaId": 0,
+    "lastUpdated": "2026-02-24T17:37:30.455Z",
+    "ultimoFolio": 4,
+    "ultimoGarantiaId": 4,
     "version": 1
   }
 }

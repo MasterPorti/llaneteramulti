@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/images') ||
-    pathname.includes('.') // Static files like .ico, .png, etc.
+    pathname.includes('.')
   ) {
     return NextResponse.next();
   }
@@ -27,30 +27,17 @@ export function middleware(request: NextRequest) {
     subdomain === 'sistema';
 
   if (isSistema) {
-    // Already in sistema route group, don't rewrite
-    if (pathname.startsWith('/sistema')) {
-      return NextResponse.next();
-    }
-
-    // Rewrite to (sistema) route group
+    if (pathname.startsWith('/inventario')) return NextResponse.next();
     const url = request.nextUrl.clone();
-    url.pathname = `/sistema${pathname}`;
+    url.pathname = `/inventario${pathname}`;
     return NextResponse.rewrite(url);
   }
 
-  // Default: POS system — routes exist at root level, just pass through
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|images).*)',
   ],
 };

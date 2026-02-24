@@ -252,11 +252,108 @@
         "folio": "9131",
         "fechaTimbrado": "2026-02-13T16:07:03.548Z"
       }
+    },
+    {
+      "id": "1771949627587-1a5cur5",
+      "folio": "V-0007",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 80,
+          "subtotal": 80
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "producto-prod-aceite-5w30",
+          "servicioNombre": "Aceite 5W30",
+          "cantidad": 1,
+          "precioUnitario": 180,
+          "subtotal": 180
+        }
+      ],
+      "subtotal": 260,
+      "iva": 0,
+      "total": 260,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-24T16:13:47.587Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-24",
+        "fechaFin": "2026-02-24",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-24T16:13:47.587Z",
+      "updatedAt": "2026-02-24T16:13:47.587Z",
+      "cancelada": false
+    },
+    {
+      "id": "1771950317409-nfuvr9p",
+      "folio": "V-0008",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-6ouqt5s",
+          "servicioNombre": "Válvula nueva",
+          "cantidad": 1,
+          "precioUnitario": 30,
+          "subtotal": 30
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "producto-prod-filtro-aceite",
+          "servicioNombre": "Filtro de aceite",
+          "cantidad": 1,
+          "precioUnitario": 120,
+          "subtotal": 120
+        },
+        {
+          "tipo": "producto",
+          "llantaId": "1770307130883-66bmarg",
+          "bodega": "bodega-1",
+          "llantaSnapshot": {
+            "marca": "Pirelli",
+            "modelo": "Cinturato P7",
+            "medida": "205/55R16"
+          },
+          "cantidad": 2,
+          "precioUnitario": 2400,
+          "subtotal": 4800
+        }
+      ],
+      "subtotal": 4950,
+      "iva": 0,
+      "total": 4950,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-02-24T16:25:17.409Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-02-24",
+        "fechaFin": "2026-02-24",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-02-24T16:25:17.409Z",
+      "updatedAt": "2026-02-24T16:25:17.409Z",
+      "cancelada": false
     }
   ],
   "metadata": {
-    "lastUpdated": "2026-02-13T16:07:03.552Z",
-    "ultimoFolio": 6,
+    "lastUpdated": "2026-02-24T16:25:17.421Z",
+    "ultimoFolio": 8,
     "version": 1
   }
 }

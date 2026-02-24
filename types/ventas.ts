@@ -71,7 +71,8 @@ export interface VentaInput {
   clienteNombre: string;
   clienteTelefono?: string;
   items: Array<{
-    tipo: 'producto' | 'servicio';
+    tipo: 'producto' | 'servicio' | 'extra' | 'catalogo';
+    nombre?: string;
     id: string;
     cantidad: number;
     bodega?: BodegaId;

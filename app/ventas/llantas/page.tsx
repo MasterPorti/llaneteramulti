@@ -9,7 +9,7 @@ export default function VentaLlantasPage() {
         <span className="ml-3 text-gray-500">Cargando...</span>
       </div>
     }>
-      <NuevaVentaContent defaultTab="productos" />
+      <NuevaVentaContent defaultTab="llantas" />
     </Suspense>
   );
 }

@@ -11,14 +11,12 @@ import {
   Plus,
   ShoppingCart,
   PlusCircle,
-  BarChart3,
   Wrench,
-  Warehouse,
   PanelLeftClose,
   PanelLeftOpen,
-  LayoutDashboard,
   Menu,
   X,
+  ShoppingBag,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -37,12 +35,12 @@ const menuItems: MenuItem[] = [
   },
   {
     label: 'Inventario',
-    href: '/inventario',
+    href: '/llantas',
     icon: Package,
   },
   {
     label: '+ Nueva Llanta',
-    href: '/inventario/nuevo',
+    href: '/llantas/nuevo',
     icon: Plus,
     indent: true,
   },
@@ -64,28 +62,20 @@ const menuItems: MenuItem[] = [
     indent: true,
   },
   {
+    label: 'Productos',
+    href: '/productos',
+    icon: ShoppingBag,
+  },
+  {
+    label: '+ Nuevo Producto',
+    href: '/productos/nuevo',
+    icon: Plus,
+    indent: true,
+  },
+  {
     label: 'Servicios',
     href: '/servicios',
     icon: Wrench,
-  },
-  {
-    label: 'Reportes',
-    href: '/reportes',
-    icon: BarChart3,
-  },
-];
-
-const adminItems: MenuItem[] = [
-  {
-    label: 'Admin',
-    href: '/admin',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'Bodegas',
-    href: '/admin/bodegas',
-    icon: Warehouse,
-    indent: true,
   },
 ];
 
@@ -198,13 +188,6 @@ export function Sidebar() {
       <nav className="sidebar-nav">
         <div className="flex flex-col gap-1 px-3">
           {renderNavItems(menuItems)}
-        </div>
-
-        {/* Admin section */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <div className="flex flex-col gap-1 px-3">
-            {renderNavItems(adminItems, true)}
-          </div>
         </div>
       </nav>
       <div className="p-4 border-t border-gray-200 text-xs text-gray-500">

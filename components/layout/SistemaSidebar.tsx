@@ -28,15 +28,15 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { label: 'Inicio', href: '/sistema', icon: Home },
-  { label: 'Inventario', href: '/sistema/inventario', icon: Package },
-  { label: 'Agregar Llanta', href: '/sistema/inventario/nuevo', icon: Plus, indent: true },
-  { label: 'Bodegas', href: '/sistema/bodegas', icon: Warehouse },
-  { label: 'Mover Stock', href: '/sistema/bodegas/mover', icon: ArrowRightLeft, indent: true },
-  { label: 'Ventas', href: '/sistema/ventas', icon: ShoppingCart },
-  { label: 'Nueva Venta', href: '/sistema/ventas/nueva', icon: Plus, indent: true },
-  { label: 'Garantías', href: '/sistema/garantias', icon: Shield },
-  { label: 'Historial', href: '/sistema/historial', icon: History },
+  { label: 'Inicio', href: '/inventario', icon: Home },
+  { label: 'Inventario', href: '/inventario/inventario', icon: Package },
+  { label: 'Agregar Llanta', href: '/inventario/inventario/nuevo', icon: Plus, indent: true },
+  { label: 'Bodegas', href: '/inventario/bodegas', icon: Warehouse },
+  { label: 'Mover Stock', href: '/inventario/bodegas/mover', icon: ArrowRightLeft, indent: true },
+  { label: 'Ventas', href: '/inventario/ventas', icon: ShoppingCart },
+  { label: 'Nueva Venta', href: '/inventario/ventas/nueva', icon: Plus, indent: true },
+  { label: 'Garantías', href: '/inventario/garantias', icon: Shield },
+  { label: 'Historial', href: '/inventario/historial', icon: History },
 ];
 
 export function SistemaSidebar() {
@@ -63,7 +63,7 @@ export function SistemaSidebar() {
   }, [pathname]);
 
   const isActive = (href: string) => {
-    if (href === '/sistema') return pathname === '/sistema';
+    if (href === '/inventario') return pathname === '/inventario';
     return pathname.startsWith(href);
   };
 

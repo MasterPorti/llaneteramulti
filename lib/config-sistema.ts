@@ -2,11 +2,11 @@ import type { BodegaId } from '@/types';
 
 // Bodegas del Sistema Inventario
 export const SISTEMA_BODEGAS: Array<{ id: BodegaId; nombre: string; ubicacion: string }> = [
-  { id: 'bodega-1', nombre: 'Bodega Principal', ubicacion: 'Ubicación principal' },
-  { id: 'bodega-2', nombre: 'Bodega Secundaria', ubicacion: 'Sucursal 2' },
-  { id: 'bodega-3', nombre: 'Bodega Auxiliar', ubicacion: 'Sucursal 3' },
-  { id: 'bodega-4', nombre: 'Bodega Externa', ubicacion: 'Almacén externo' },
-  { id: 'bodega-5', nombre: 'Almacen', ubicacion: 'Almacén general' },
+  { id: 'bodega-1', nombre: 'Local', ubicacion: 'Local' },
+  { id: 'bodega-2', nombre: 'Escaleras', ubicacion: 'Escaleras' },
+  { id: 'bodega-3', nombre: 'Benito', ubicacion: 'Benito' },
+  { id: 'bodega-4', nombre: 'Hacienda 1', ubicacion: 'Hacienda 1' },
+  { id: 'bodega-5', nombre: 'Coacalco', ubicacion: 'Coacalco' },
 ];
 
 // Configuración general del Sistema Inventario
@@ -19,9 +19,23 @@ export const SISTEMA_CONFIG = {
   formatoGarantia: 'GAR-',
 
   // Garantía predeterminada
-  garantiaDiasPredeterminado: 60,
-  condicionesGarantiaPredeterminado:
-    'Garantía por defectos de fabricación. No cubre daños por mal uso, pinchazos, o desgaste normal.',
+  garantiaDiasPredeterminado: 180,
+  condicionesGarantiaPredeterminado: `TÉRMINOS Y CONDICIONES DE GARANTÍA
+Toda llanta que ostente marca y serie, siempre que sea utilizada en condiciones normales, está garantizada por 6 meses contra defectos de fabricación, de acuerdo con las siguientes condiciones.
+
+PARA HACER VÁLIDA ESTA GARANTÍA:
+1. Factura o nota de compra de la llanta
+2. Identificación oficial (INE)
+3. Formato de garantía
+
+LA GARANTÍA NO ES VÁLIDA PARA:
+1. Llantas reparadas
+2. Rodadas con baja presión
+3. Rodadas con alta presión
+4. Cortadas con objeto punzocortante
+5. Impacto en costados (banquetazos)
+6. Impacto por baches
+7. Exceso de carga`,
 
   // Métodos de pago disponibles
   metodosPago: [

@@ -1,8 +1,248 @@
 {
-  "llantas": [],
-  "movimientos": [],
+  "llantas": [
+    {
+      "id": "si-llanta-001",
+      "marca": "Bridgestone",
+      "modelo": "Ecopia EP150",
+      "medida": "205/55R16",
+      "ancho": 205,
+      "perfil": 55,
+      "rin": 16,
+      "precioCompra": 800,
+      "precioVenta": 1200,
+      "stockPorBodega": {
+        "bodega-1": 2,
+        "bodega-2": 4,
+        "bodega-3": 0,
+        "bodega-4": 0,
+        "bodega-5": 0
+      },
+      "proveedor": "Distribuidora Bridgestone",
+      "fechaRecepcion": "2026-02-01",
+      "createdAt": "2026-02-01T10:00:00.000Z",
+      "updatedAt": "2026-02-24T17:12:19.450Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-002",
+      "marca": "Michelin",
+      "modelo": "Primacy 4",
+      "medida": "205/55R16",
+      "ancho": 205,
+      "perfil": 55,
+      "rin": 16,
+      "precioCompra": 1100,
+      "precioVenta": 1600,
+      "stockPorBodega": {
+        "bodega-1": 8,
+        "bodega-2": 0,
+        "bodega-3": 2,
+        "bodega-4": 0,
+        "bodega-5": 0
+      },
+      "proveedor": "Michelin México",
+      "fechaRecepcion": "2026-02-05",
+      "createdAt": "2026-02-05T10:00:00.000Z",
+      "updatedAt": "2026-02-05T10:00:00.000Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-003",
+      "marca": "Continental",
+      "modelo": "ContiSportContact 5",
+      "medida": "225/45R17",
+      "ancho": 225,
+      "perfil": 45,
+      "rin": 17,
+      "precioCompra": 1300,
+      "precioVenta": 1900,
+      "stockPorBodega": {
+        "bodega-1": 4,
+        "bodega-2": 4,
+        "bodega-3": 0,
+        "bodega-4": 0,
+        "bodega-5": 0
+      },
+      "proveedor": "Continental Tires",
+      "fechaRecepcion": "2026-02-08",
+      "createdAt": "2026-02-08T10:00:00.000Z",
+      "updatedAt": "2026-02-08T10:00:00.000Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-004",
+      "marca": "Pirelli",
+      "modelo": "P Zero",
+      "medida": "245/40R18",
+      "ancho": 245,
+      "perfil": 40,
+      "rin": 18,
+      "precioCompra": 1800,
+      "precioVenta": 2600,
+      "stockPorBodega": {
+        "bodega-1": 1,
+        "bodega-2": 0,
+        "bodega-3": 1,
+        "bodega-4": 0,
+        "bodega-5": 0
+      },
+      "proveedor": "Pirelli México",
+      "fechaRecepcion": "2026-02-10",
+      "createdAt": "2026-02-10T10:00:00.000Z",
+      "updatedAt": "2026-02-24T16:59:04.367Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-005",
+      "marca": "Goodyear",
+      "modelo": "Assurance WeatherReady",
+      "medida": "215/60R16",
+      "ancho": 215,
+      "perfil": 60,
+      "rin": 16,
+      "precioCompra": 900,
+      "precioVenta": 1350,
+      "stockPorBodega": {
+        "bodega-1": 0,
+        "bodega-2": 0,
+        "bodega-3": 0,
+        "bodega-4": 5,
+        "bodega-5": 0
+      },
+      "proveedor": "Goodyear de México",
+      "fechaRecepcion": "2026-02-12",
+      "createdAt": "2026-02-12T10:00:00.000Z",
+      "updatedAt": "2026-02-24T17:26:28.688Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-006",
+      "marca": "Hankook",
+      "modelo": "Kinergy GT",
+      "medida": "195/65R15",
+      "ancho": 195,
+      "perfil": 65,
+      "rin": 15,
+      "precioCompra": 650,
+      "precioVenta": 950,
+      "stockPorBodega": {
+        "bodega-1": 12,
+        "bodega-2": 0,
+        "bodega-3": 0,
+        "bodega-4": 0,
+        "bodega-5": 3
+      },
+      "proveedor": "Hankook Tire",
+      "fechaRecepcion": "2026-02-14",
+      "createdAt": "2026-02-14T10:00:00.000Z",
+      "updatedAt": "2026-02-14T10:00:00.000Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-007",
+      "marca": "Yokohama",
+      "modelo": "AVID Ascend GT",
+      "medida": "185/65R15",
+      "ancho": 185,
+      "perfil": 65,
+      "rin": 15,
+      "precioCompra": 700,
+      "precioVenta": 1050,
+      "stockPorBodega": {
+        "bodega-1": 4,
+        "bodega-2": 0,
+        "bodega-3": 5,
+        "bodega-4": 0,
+        "bodega-5": 0
+      },
+      "proveedor": "Yokohama México",
+      "fechaRecepcion": "2026-02-16",
+      "createdAt": "2026-02-16T10:00:00.000Z",
+      "updatedAt": "2026-02-24T17:37:30.452Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-008",
+      "marca": "BFGoodrich",
+      "modelo": "All-Terrain T/A KO2",
+      "medida": "265/70R17",
+      "ancho": 265,
+      "perfil": 70,
+      "rin": 17,
+      "precioCompra": 2000,
+      "precioVenta": 2900,
+      "stockPorBodega": {
+        "bodega-1": 3,
+        "bodega-2": 0,
+        "bodega-3": 0,
+        "bodega-4": 3,
+        "bodega-5": 0
+      },
+      "proveedor": "BFGoodrich México",
+      "fechaRecepcion": "2026-02-18",
+      "createdAt": "2026-02-18T10:00:00.000Z",
+      "updatedAt": "2026-02-18T10:00:00.000Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-009",
+      "marca": "Dunlop",
+      "modelo": "Sport Maxx RT",
+      "medida": "235/50R18",
+      "ancho": 235,
+      "perfil": 50,
+      "rin": 18,
+      "precioCompra": 1400,
+      "precioVenta": 2100,
+      "stockPorBodega": {
+        "bodega-1": 4,
+        "bodega-2": 2,
+        "bodega-3": 0,
+        "bodega-4": 0,
+        "bodega-5": 0
+      },
+      "proveedor": "Dunlop Tires",
+      "fechaRecepcion": "2026-02-20",
+      "createdAt": "2026-02-20T10:00:00.000Z",
+      "updatedAt": "2026-02-20T10:00:00.000Z",
+      "activo": true
+    },
+    {
+      "id": "si-llanta-010",
+      "marca": "Toyo",
+      "modelo": "Proxes T1 Sport",
+      "medida": "225/40R18",
+      "ancho": 225,
+      "perfil": 40,
+      "rin": 18,
+      "precioCompra": 1200,
+      "precioVenta": 1750,
+      "stockPorBodega": {
+        "bodega-1": 6,
+        "bodega-2": 0,
+        "bodega-3": 0,
+        "bodega-4": 0,
+        "bodega-5": 4
+      },
+      "proveedor": "Toyo Tires México",
+      "fechaRecepcion": "2026-02-22",
+      "createdAt": "2026-02-22T10:00:00.000Z",
+      "updatedAt": "2026-02-22T10:00:00.000Z",
+      "activo": true
+    }
+  ],
+  "movimientos": [
+    {
+      "id": "1771951994179-c1ibl8h",
+      "llantaId": "si-llanta-004",
+      "bodegaOrigen": "bodega-1",
+      "bodegaDestino": "bodega-3",
+      "cantidad": 1,
+      "fecha": "2026-02-24T16:53:14.179Z"
+    }
+  ],
   "metadata": {
-    "lastUpdated": "2026-02-17T00:00:00.000Z",
+    "lastUpdated": "2026-02-24T17:37:30.452Z",
     "version": 1
   }
 }

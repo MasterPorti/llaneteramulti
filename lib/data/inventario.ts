@@ -6,8 +6,11 @@ import { generateId, parseMedida } from '@/lib/utils/formatters';
 
 const DATA_PATH = path.join(process.cwd(), 'data', 'inventario.json');
 
+// Storage format: uses simple `stock` field instead of `stockPorBodega`
+type LlantaStored = Omit<Llanta, 'stockPorBodega'> & { stock: number };
+
 interface InventarioData {
-  llantas: Llanta[];
+  llantas: LlantaStored[];
   movimientos: MovimientoBodega[];
   metadata: {
     lastUpdated: string;
@@ -15,18 +18,33 @@ interface InventarioData {
   };
 }
 
-const emptyStock = (): Record<BodegaId, number> => ({
-  'bodega-1': 0,
-  'bodega-2': 0,
-  'bodega-3': 0,
-  'bodega-4': 0,
-  'bodega-5': 0,
-});
+function fromStored(stored: LlantaStored): Llanta {
+  return {
+    ...stored,
+    stockPorBodega: {
+      'bodega-1': stored.stock,
+      'bodega-2': 0,
+      'bodega-3': 0,
+      'bodega-4': 0,
+      'bodega-5': 0,
+    },
+  };
+}
 
-async function readData(): Promise<InventarioData> {
+function toStored(llanta: Llanta): LlantaStored {
+  const { stockPorBodega, ...rest } = llanta;
+  return { ...rest, stock: stockPorBodega['bodega-1'] || 0 };
+}
+
+async function readData(): Promise<{ llantas: Llanta[]; movimientos: MovimientoBodega[]; metadata: InventarioData['metadata'] }> {
   try {
     const content = await fs.readFile(DATA_PATH, 'utf-8');
-    return JSON.parse(content);
+    const raw: InventarioData = JSON.parse(content);
+    return {
+      llantas: raw.llantas.map(fromStored),
+      movimientos: raw.movimientos || [],
+      metadata: raw.metadata,
+    };
   } catch {
     return {
       llantas: [],
@@ -36,9 +54,14 @@ async function readData(): Promise<InventarioData> {
   }
 }
 
-async function writeData(data: InventarioData): Promise<void> {
+async function writeData(data: { llantas: Llanta[]; movimientos: MovimientoBodega[]; metadata: InventarioData['metadata'] }): Promise<void> {
   data.metadata.lastUpdated = new Date().toISOString();
-  await fs.writeFile(DATA_PATH, JSON.stringify(data, null, 2), 'utf-8');
+  const toWrite: InventarioData = {
+    llantas: data.llantas.map(toStored),
+    movimientos: data.movimientos,
+    metadata: data.metadata,
+  };
+  await fs.writeFile(DATA_PATH, JSON.stringify(toWrite, null, 2), 'utf-8');
 }
 
 export async function obtenerInventario(): Promise<Llanta[]> {
@@ -88,8 +111,6 @@ export async function crearLlanta(input: LlantaInput): Promise<Llanta> {
   }
 
   const now = new Date().toISOString();
-  const stock = emptyStock();
-  stock[input.bodega] = input.cantidad;
 
   const nuevaLlanta: Llanta = {
     id: generateId(),
@@ -101,7 +122,13 @@ export async function crearLlanta(input: LlantaInput): Promise<Llanta> {
     rin: medidaParsed.rin,
     precioCompra: input.precioCompra,
     precioVenta: input.precioVenta,
-    stockPorBodega: stock,
+    stockPorBodega: {
+      'bodega-1': input.cantidad,
+      'bodega-2': 0,
+      'bodega-3': 0,
+      'bodega-4': 0,
+      'bodega-5': 0,
+    },
     proveedor: input.proveedor,
     fechaRecepcion: input.fechaRecepcion,
     createdAt: now,
@@ -175,11 +202,7 @@ export async function ajustarStock(
   if (index === -1) return null;
 
   const llanta = data.llantas[index];
-  if (!llanta.stockPorBodega) {
-    llanta.stockPorBodega = emptyStock();
-  }
-
-  llanta.stockPorBodega[bodega] = Math.max(0, (llanta.stockPorBodega[bodega] || 0) + cantidad);
+  llanta.stockPorBodega['bodega-1'] = Math.max(0, (llanta.stockPorBodega['bodega-1'] || 0) + cantidad);
   llanta.updatedAt = new Date().toISOString();
 
   data.llantas[index] = llanta;
@@ -199,21 +222,20 @@ export async function moverStock(
   if (index === -1) return null;
 
   const llanta = data.llantas[index];
-  const stockOrigen = llanta.stockPorBodega[bodegaOrigen] || 0;
+  const stockActual = llanta.stockPorBodega['bodega-1'] || 0;
 
-  if (stockOrigen < cantidad) {
-    throw new Error(`Stock insuficiente en bodega origen. Disponible: ${stockOrigen}`);
+  if (stockActual < cantidad) {
+    throw new Error(`Stock insuficiente. Disponible: ${stockActual}`);
   }
 
-  llanta.stockPorBodega[bodegaOrigen] -= cantidad;
-  llanta.stockPorBodega[bodegaDestino] = (llanta.stockPorBodega[bodegaDestino] || 0) + cantidad;
+  llanta.stockPorBodega['bodega-1'] -= cantidad;
   llanta.updatedAt = new Date().toISOString();
 
   data.movimientos.push({
     id: generateId(),
     llantaId,
-    bodegaOrigen,
-    bodegaDestino,
+    bodegaOrigen: 'bodega-1',
+    bodegaDestino: 'bodega-1',
     cantidad,
     fecha: new Date().toISOString(),
   });

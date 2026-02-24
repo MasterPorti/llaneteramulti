@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Package, Wrench, X } from 'lucide-react';
-import { buscarLlantas } from '@/app/inventario/actions';
+import { buscarLlantas } from '@/app/llantas/actions';
 import type { LlantaSuggestion, Servicio } from '@/types';
 
 interface SearchBarProps {

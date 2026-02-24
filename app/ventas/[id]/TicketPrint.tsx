@@ -1,5 +1,5 @@
 import { CONFIG } from '@/lib/config';
-import { formatCurrency, formatDateTime, formatDate } from '@/lib/utils/formatters';
+import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
 import type { Venta } from '@/types';
 
 interface Props {
@@ -82,21 +82,6 @@ export function TicketPrint({ venta }: Props) {
         <span>Metodo de pago:</span>
         <span className="capitalize">{venta.metodoPago}</span>
       </div>
-
-      {venta.garantia.diasGarantia > 0 && (
-        <>
-          <div className="ticket-divider" />
-
-          <div className="text-center mt-2">
-            <p className="font-bold">GARANTIA</p>
-            <p>{venta.garantia.diasGarantia} dias</p>
-            <p className="text-xs">
-              Valida del {formatDate(venta.garantia.fechaInicio)} al {formatDate(venta.garantia.fechaFin)}
-            </p>
-            <p className="text-xs mt-1 text-gray-600">{venta.garantia.condiciones}</p>
-          </div>
-        </>
-      )}
 
       {venta.facturada && venta.factura && (
         <>

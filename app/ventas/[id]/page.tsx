@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge, PrintButton } from '@/components/ui';
 import { obtenerVenta } from '../actions';
-import { formatCurrency, formatDate, formatDateTime, daysBetween } from '@/lib/utils/formatters';
+import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
 import { CONFIG } from '@/lib/config';
 import { TicketPrint } from './TicketPrint';
 import { CancelarVentaButton } from './CancelarVentaButton';
@@ -21,9 +21,6 @@ export default async function VentaDetallePage({ params }: Props) {
   }
 
   const venta = result.data;
-  const hoy = new Date().toISOString().split('T')[0];
-  const diasRestantesGarantia = daysBetween(hoy, venta.garantia.fechaFin);
-  const garantiaVigente = diasRestantesGarantia > 0 && venta.garantia.activa;
 
   return (
     <div>
@@ -181,40 +178,6 @@ export default async function VentaDetallePage({ params }: Props) {
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <h2 className="font-semibold">Garantia</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm text-gray-500">Estado</p>
-                  <Badge variant={garantiaVigente ? 'success' : 'danger'}>
-                    {garantiaVigente
-                      ? `Vigente (${diasRestantesGarantia} dias restantes)`
-                      : 'Vencida'}
-                  </Badge>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-500">Duracion</p>
-                  <p className="font-medium">{venta.garantia.diasGarantia} dias</p>
-                </div>
-              </div>
-              <dl className="grid grid-cols-2 gap-4">
-                <div>
-                  <dt className="text-sm text-gray-500">Inicio</dt>
-                  <dd className="font-medium">{formatDate(venta.garantia.fechaInicio)}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-500">Vencimiento</dt>
-                  <dd className="font-medium">{formatDate(venta.garantia.fechaFin)}</dd>
-                </div>
-              </dl>
-              <p className="text-sm text-gray-600 mt-4 p-3 bg-gray-50 border">
-                {venta.garantia.condiciones}
-              </p>
-            </CardBody>
-          </Card>
         </div>
 
         <div className="print-only lg:no-print">

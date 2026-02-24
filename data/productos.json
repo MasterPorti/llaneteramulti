@@ -1,0 +1,88 @@
+{
+  "productos": [
+    {
+      "id": "prod-aceite-5w30",
+      "nombre": "Aceite 5W30",
+      "descripcion": "Aceite de motor sintético 1L",
+      "precio": 180,
+      "stock": 19,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:13:47.584Z"
+    },
+    {
+      "id": "prod-aceite-10w40",
+      "nombre": "Aceite 10W40",
+      "descripcion": "Aceite de motor semisintético 1L",
+      "precio": 150,
+      "stock": 15,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:12:17.029Z"
+    },
+    {
+      "id": "prod-filtro-aceite",
+      "nombre": "Filtro de aceite",
+      "descripcion": "Filtro universal",
+      "precio": 120,
+      "stock": 11,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:25:17.404Z"
+    },
+    {
+      "id": "prod-filtro-aire",
+      "nombre": "Filtro de aire",
+      "descripcion": "Filtro de aire estándar",
+      "precio": 95,
+      "stock": 8,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:12:17.029Z"
+    },
+    {
+      "id": "prod-valvula",
+      "nombre": "Válvula de llanta",
+      "descripcion": "Válvula para rin estándar",
+      "precio": 25,
+      "stock": 50,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:12:17.029Z"
+    },
+    {
+      "id": "prod-pesos-bal",
+      "nombre": "Pesos de balanceo",
+      "descripcion": "Paquete 100g adhesivos",
+      "precio": 45,
+      "stock": 30,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:12:17.029Z"
+    },
+    {
+      "id": "prod-liquido-frenos",
+      "nombre": "Liquido de frenos",
+      "descripcion": "DOT4 500ml",
+      "precio": 110,
+      "stock": 10,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:12:17.029Z"
+    },
+    {
+      "id": "prod-silicona",
+      "nombre": "Silicona para llantas",
+      "descripcion": "Brillo y protección 500ml",
+      "precio": 75,
+      "stock": 18,
+      "activo": true,
+      "createdAt": "2026-02-24T16:12:17.029Z",
+      "updatedAt": "2026-02-24T16:12:17.029Z"
+    }
+  ],
+  "metadata": {
+    "lastUpdated": "2026-02-24T16:25:17.404Z",
+    "version": 1
+  }
+}

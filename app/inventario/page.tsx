@@ -1,217 +1,292 @@
-"use client";
+import { Package, ShoppingCart, Shield, Warehouse, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { Card, CardBody, CardHeader } from '@/components/ui';
+import { obtenerInventarioSistema } from '@/lib/data/sistema-inventario';
+import { obtenerVentasSistema, obtenerGarantiasActivas } from '@/lib/data/sistema-ventas';
+import { SISTEMA_BODEGAS } from '@/lib/config-sistema';
+import { getTotalStock } from '@/types';
+import { formatCurrency } from '@/lib/utils/formatters';
 
-import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { Plus, Search, Package } from "lucide-react";
-import { PageHeader } from "@/components/layout";
-import { Card, CardBody, Badge } from "@/components/ui";
-import { obtenerInventario } from "./actions";
-import { formatCurrency } from "@/lib/utils/formatters";
-import { getTotalStock, type Llanta, type BodegaId } from "@/types";
-import { BODEGAS } from "@/lib/config";
+export const dynamic = 'force-dynamic';
 
-export default function InventarioPage() {
-  const [inventario, setInventario] = useState<Llanta[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busqueda, setBusqueda] = useState("");
-  const [bodegaFiltro, setBodegaFiltro] = useState<BodegaId | "">("");
+export default async function SistemaDashboard() {
+  const inventario = await obtenerInventarioSistema();
+  const ventas = await obtenerVentasSistema();
+  const garantiasActivas = await obtenerGarantiasActivas();
 
-  const loadInventario = useCallback(async () => {
-    setLoading(true);
-    const result = await obtenerInventario();
-    if (result.success && result.data) {
-      setInventario(result.data);
-    }
-    setLoading(false);
-  }, []);
+  // Calcular estadísticas
+  const totalProductos = inventario.length;
+  const totalUnidades = inventario.reduce((acc, l) => acc + getTotalStock(l), 0);
+  const valorInventario = inventario.reduce(
+    (acc, l) => acc + getTotalStock(l) * l.precioVenta,
+    0
+  );
 
-  useEffect(() => {
-    loadInventario();
-  }, [loadInventario]);
+  const ventasHoy = ventas.filter(
+    (v) => v.fechaVenta.split('T')[0] === new Date().toISOString().split('T')[0]
+  );
+  const ingresoHoy = ventasHoy.reduce((acc, v) => acc + v.total, 0);
 
-  const inventarioFiltrado = inventario.filter((l) => {
-    // Filtrar por bodega
-    if (bodegaFiltro && (l.stockPorBodega[bodegaFiltro] || 0) === 0) {
-      return false;
-    }
-    // Filtrar por búsqueda
-    if (busqueda.trim()) {
-      const term = busqueda.toLowerCase();
-      return (
-        l.marca.toLowerCase().includes(term) ||
-        l.modelo.toLowerCase().includes(term) ||
-        l.medida.toLowerCase().includes(term) ||
-        l.proveedor.toLowerCase().includes(term) ||
-        `${l.marca} ${l.modelo}`.toLowerCase().includes(term)
-      );
-    }
-    return true;
-  });
-
-  if (loading) {
-    return (
-      <div>
-        <PageHeader
-          title="Inventario"
-          subtitle="Catálogo de llantas disponibles"
-        />
-        <div className="flex items-center justify-center py-20">
-          <span className="spinner" />
-          <span className="ml-3 text-gray-500">Cargando inventario...</span>
-        </div>
-      </div>
-    );
-  }
+  // Stock por bodega
+  const stockPorBodega = SISTEMA_BODEGAS.map((bodega) => ({
+    ...bodega,
+    unidades: inventario.reduce((acc, l) => acc + (l.stockPorBodega[bodega.id] || 0), 0),
+    productos: inventario.filter((l) => (l.stockPorBodega[bodega.id] || 0) > 0).length,
+  }));
 
   return (
     <div>
-      <PageHeader
-        title="Inventario"
-        subtitle={`${inventario.length} productos en catálogo`}
-      />
-
-      {/* Buscador y Filtros */}
-      <div className="mb-6 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            className="input"
-            style={{ paddingLeft: "2.5rem" }}
-            placeholder="Buscar por marca, modelo, medida o proveedor..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
-        </div>
-
-        {/* Filtro por Bodega */}
-        <div className="flex flex-wrap gap-2">
-          <span className="text-sm text-gray-500 self-center mr-2">
-            Bodega:
-          </span>
-          <button
-            onClick={() => setBodegaFiltro("")}
-            className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-              bodegaFiltro === ""
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Todas
-          </button>
-          {BODEGAS.map((bodega) => (
-            <button
-              key={bodega.id}
-              onClick={() => setBodegaFiltro(bodega.id)}
-              className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                bodegaFiltro === bodega.id
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {bodega.nombre}
-            </button>
-          ))}
-        </div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+          Sistema Inventario
+        </h1>
+        <p className="text-[var(--text-secondary)]">
+          Panel de control de inventario de llantas
+        </p>
       </div>
 
-      {inventarioFiltrado.length === 0 ? (
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <Card>
-          <CardBody>
-            <div className="text-center py-12 text-gray-400">
-              <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              {busqueda || bodegaFiltro ? (
-                <p>
-                  No se encontraron productos
-                  {busqueda && <> para &quot;{busqueda}&quot;</>}
-                  {bodegaFiltro && (
-                    <>
-                      {" "}
-                      en {BODEGAS.find((b) => b.id === bodegaFiltro)?.nombre}
-                    </>
-                  )}
-                </p>
-              ) : (
-                <p>No hay llantas en inventario. Agrega la primera.</p>
-              )}
+          <CardBody className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <Package className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)]">Productos</p>
+                <p className="text-xl font-bold">{totalProductos}</p>
+              </div>
             </div>
           </CardBody>
         </Card>
-      ) : (
+
         <Card>
-          <CardBody className="p-0">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Producto</th>
-                  <th>Medida</th>
-                  <th>Stock</th>
-                  <th>Ubicación</th>
-                  <th>Precio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventarioFiltrado.map((llanta) => {
-                  const totalStock = getTotalStock(llanta);
-                  const bodegasConStock = BODEGAS.filter(
-                    (b) => (llanta.stockPorBodega[b.id] || 0) > 0
-                  );
-                  return (
-                    <tr key={llanta.id} className="hover:bg-gray-50">
-                      <td>
-                        <Link
-                          href={`/inventario/${llanta.id}`}
-                          className="hover:underline"
-                        >
-                          <p className="font-medium">
-                            {llanta.marca} {llanta.modelo}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            R{llanta.rin} · {llanta.ancho}/{llanta.perfil}
-                          </p>
-                        </Link>
-                      </td>
-                      <td className="font-mono">{llanta.medida}</td>
-                      <td>
-                        <Badge
-                          variant={
-                            totalStock === 0
-                              ? "danger"
-                              : totalStock <= 3
-                              ? "warning"
-                              : "success"
-                          }
-                        >
-                          {totalStock}
-                        </Badge>
-                      </td>
-                      <td>
-                        {bodegasConStock.length === 0 ? (
-                          <span className="text-gray-400 text-xs">
-                            Sin stock
-                          </span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {bodegasConStock.map((b) => (
-                              <span
-                                key={b.id}
-                                className="inline-flex items-center px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded"
-                              >
-                                {b.nombre}: {llanta.stockPorBodega[b.id]}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td>{formatCurrency(llanta.precioVenta)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <CardBody className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/20">
+                <Warehouse className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)]">Unidades</p>
+                <p className="text-xl font-bold">{totalUnidades}</p>
+              </div>
+            </div>
           </CardBody>
         </Card>
-      )}
+
+        <Card>
+          <CardBody className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/20">
+                <ShoppingCart className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)]">Ventas Hoy</p>
+                <p className="text-xl font-bold">{ventasHoy.length}</p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardBody className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/20">
+                <Shield className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)]">Garantías</p>
+                <p className="text-xl font-bold">{garantiasActivas.length}</p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Stock por Bodega */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Warehouse className="w-5 h-5" />
+                Stock por Bodega
+              </h2>
+              <Link
+                href="/inventario/bodegas"
+                className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1"
+              >
+                Ver todas <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </CardHeader>
+          <CardBody className="p-0">
+            <div className="divide-y divide-[var(--border-color)]">
+              {stockPorBodega.map((bodega) => (
+                <div
+                  key={bodega.id}
+                  className="p-4 flex items-center justify-between hover:bg-[var(--bg-hover)] transition-colors"
+                >
+                  <div>
+                    <p className="font-medium">{bodega.nombre}</p>
+                    <p className="text-sm text-[var(--text-muted)]">
+                      {bodega.productos} productos
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-lg">{bodega.unidades}</p>
+                    <p className="text-xs text-[var(--text-muted)]">unidades</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* Ventas Recientes */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5" />
+                Ventas Recientes
+              </h2>
+              <Link
+                href="/inventario/historial"
+                className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1"
+              >
+                Ver historial <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </CardHeader>
+          <CardBody className="p-0">
+            {ventas.length === 0 ? (
+              <div className="p-8 text-center text-[var(--text-muted)]">
+                <ShoppingCart className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>No hay ventas registradas</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--border-color)]">
+                {ventas.slice(0, 5).map((venta) => (
+                  <Link
+                    key={venta.id}
+                    href={`/inventario/ventas/${venta.id}`}
+                    className="p-4 flex items-center justify-between hover:bg-[var(--bg-hover)] transition-colors"
+                  >
+                    <div>
+                      <p className="font-medium">{venta.folio}</p>
+                      <p className="text-sm text-[var(--text-muted)]">
+                        {venta.cliente.nombre}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold">{formatCurrency(venta.total)}</p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        {venta.garantia.id}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+
+        {/* Garantías Activas */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Shield className="w-5 h-5" />
+                Garantías Activas
+              </h2>
+              <Link
+                href="/inventario/garantias"
+                className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1"
+              >
+                Buscar garantía <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </CardHeader>
+          <CardBody className="p-0">
+            {garantiasActivas.length === 0 ? (
+              <div className="p-8 text-center text-[var(--text-muted)]">
+                <Shield className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>No hay garantías activas</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--border-color)]">
+                {garantiasActivas.slice(0, 5).map(({ venta, garantia, diasRestantes }) => (
+                  <Link
+                    key={garantia.id}
+                    href={`/inventario/garantias/${garantia.id}`}
+                    className="p-4 flex items-center justify-between hover:bg-[var(--bg-hover)] transition-colors"
+                  >
+                    <div>
+                      <p className="font-mono font-bold text-[var(--accent)]">
+                        {garantia.id}
+                      </p>
+                      <p className="text-sm text-[var(--text-muted)]">
+                        {venta.cliente.nombre} - {venta.folio}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          diasRestantes <= 7
+                            ? 'bg-red-500/20 text-red-400'
+                            : diasRestantes <= 30
+                            ? 'bg-yellow-500/20 text-yellow-400'
+                            : 'bg-green-500/20 text-green-400'
+                        }`}
+                      >
+                        {diasRestantes} días restantes
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Link
+          href="/inventario/inventario/nuevo"
+          className="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors text-center"
+        >
+          <Package className="w-8 h-8 mx-auto mb-2 text-blue-400" />
+          <p className="font-medium">Agregar Llanta</p>
+        </Link>
+
+        <Link
+          href="/inventario/ventas/nueva"
+          className="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors text-center"
+        >
+          <ShoppingCart className="w-8 h-8 mx-auto mb-2 text-green-400" />
+          <p className="font-medium">Nueva Venta</p>
+        </Link>
+
+        <Link
+          href="/inventario/bodegas/mover"
+          className="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors text-center"
+        >
+          <Warehouse className="w-8 h-8 mx-auto mb-2 text-amber-400" />
+          <p className="font-medium">Mover Stock</p>
+        </Link>
+
+        <Link
+          href="/inventario/garantias"
+          className="p-4 rounded-lg border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors text-center"
+        >
+          <Shield className="w-8 h-8 mx-auto mb-2 text-purple-400" />
+          <p className="font-medium">Buscar Garantía</p>
+        </Link>
+      </div>
     </div>
   );
 }

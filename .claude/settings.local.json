@@ -12,7 +12,16 @@
       "Bash(git commit:*)",
       "Bash(ls:*)",
       "Bash(cmd //c \"rename \"\"\\(sistema\\)\"\" sistema\")",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(cmd //c:*)",
+      "Bash(powershell -File:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(while read:*)",
+      "Bash(do sed -i 's|/sistema/|/inventario/|g; s|/sistema\"\"|/inventario\"\"|g; s|/sistema'\"''\"'|/inventario'\"''\"'|g' \"$f\")",
+      "Bash(echo:*)",
+      "Bash(done)",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const raw=JSON.parse\\(fs.readFileSync\\(''data/inventario.json'',''utf8''\\)\\); console.log\\(typeof raw, Array.isArray\\(raw\\), Object.keys\\(raw\\).slice\\(0,3\\)\\)\")",
+      "Bash(node -e \":*)"
     ]
   }
 }

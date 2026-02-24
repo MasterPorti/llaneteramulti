@@ -7,21 +7,15 @@
       "medida": "205/55R16",
       "precioCompra": 1800,
       "precioVenta": 2400,
-      "stockPorBodega": {
-        "bodega-1": 7,
-        "bodega-2": 4,
-        "bodega-3": 1,
-        "bodega-4": 0,
-        "bodega-5": 3
-      },
       "proveedor": "Distribuidora Nacional",
       "fechaRecepcion": "2026-02-01",
       "ancho": 205,
       "perfil": 55,
       "rin": 16,
       "createdAt": "2026-02-01T10:00:00.000Z",
-      "updatedAt": "2026-02-10T18:25:52.484Z",
-      "activo": true
+      "updatedAt": "2026-02-24T16:25:17.415Z",
+      "activo": true,
+      "stock": 2
     },
     {
       "id": "llanta-mich-ps4",
@@ -30,13 +24,6 @@
       "medida": "225/45R17",
       "precioCompra": 2800,
       "precioVenta": 3600,
-      "stockPorBodega": {
-        "bodega-1": 6,
-        "bodega-2": 2,
-        "bodega-3": 0,
-        "bodega-4": 0,
-        "bodega-5": 4
-      },
       "proveedor": "Michelin Mexico",
       "fechaRecepcion": "2026-01-28",
       "ancho": 225,
@@ -44,7 +31,8 @@
       "rin": 17,
       "createdAt": "2026-01-28T10:00:00.000Z",
       "updatedAt": "2026-02-05T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-bridg-turanza",
@@ -53,13 +41,6 @@
       "medida": "195/65R15",
       "precioCompra": 1500,
       "precioVenta": 2100,
-      "stockPorBodega": {
-        "bodega-1": 2,
-        "bodega-2": 6,
-        "bodega-3": 4,
-        "bodega-4": 8,
-        "bodega-5": 8
-      },
       "proveedor": "Bridgestone Dist.",
       "fechaRecepcion": "2026-02-03",
       "ancho": 195,
@@ -67,7 +48,8 @@
       "rin": 15,
       "createdAt": "2026-02-03T10:00:00.000Z",
       "updatedAt": "2026-02-13T16:53:23.160Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-cont-cc6",
@@ -76,13 +58,6 @@
       "medida": "185/60R15",
       "precioCompra": 1200,
       "precioVenta": 1750,
-      "stockPorBodega": {
-        "bodega-1": 5,
-        "bodega-2": 0,
-        "bodega-3": 3,
-        "bodega-4": 2,
-        "bodega-5": 4
-      },
       "proveedor": "Continental MX",
       "fechaRecepcion": "2026-01-25",
       "ancho": 185,
@@ -90,7 +65,8 @@
       "rin": 15,
       "createdAt": "2026-01-25T10:00:00.000Z",
       "updatedAt": "2026-02-01T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-hankook-v12",
@@ -99,13 +75,6 @@
       "medida": "215/50R17",
       "precioCompra": 1600,
       "precioVenta": 2200,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 3,
-        "bodega-3": 0,
-        "bodega-4": 0,
-        "bodega-5": 2
-      },
       "proveedor": "Hankook Dist.",
       "fechaRecepcion": "2026-02-05",
       "ancho": 215,
@@ -113,7 +82,8 @@
       "rin": 17,
       "createdAt": "2026-02-05T10:00:00.000Z",
       "updatedAt": "2026-02-05T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-yoko-advan",
@@ -122,13 +92,6 @@
       "medida": "235/40R18",
       "precioCompra": 3200,
       "precioVenta": 4200,
-      "stockPorBodega": {
-        "bodega-1": 3,
-        "bodega-2": 0,
-        "bodega-3": 2,
-        "bodega-4": 0,
-        "bodega-5": 1
-      },
       "proveedor": "Yokohama MX",
       "fechaRecepcion": "2026-02-07",
       "ancho": 235,
@@ -136,7 +99,8 @@
       "rin": 18,
       "createdAt": "2026-02-07T10:00:00.000Z",
       "updatedAt": "2026-02-07T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-good-eagle",
@@ -145,13 +109,6 @@
       "medida": "245/40R18",
       "precioCompra": 3500,
       "precioVenta": 4500,
-      "stockPorBodega": {
-        "bodega-1": 2,
-        "bodega-2": 2,
-        "bodega-3": 0,
-        "bodega-4": 2,
-        "bodega-5": 0
-      },
       "proveedor": "Goodyear Dist.",
       "fechaRecepcion": "2026-02-06",
       "ancho": 245,
@@ -159,7 +116,8 @@
       "rin": 18,
       "createdAt": "2026-02-06T10:00:00.000Z",
       "updatedAt": "2026-02-06T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-toyo-proxes",
@@ -168,13 +126,6 @@
       "medida": "225/50R17",
       "precioCompra": 2000,
       "precioVenta": 2800,
-      "stockPorBodega": {
-        "bodega-1": 0,
-        "bodega-2": 5,
-        "bodega-3": 3,
-        "bodega-4": 0,
-        "bodega-5": 6
-      },
       "proveedor": "Toyo Tires MX",
       "fechaRecepcion": "2026-02-04",
       "ancho": 225,
@@ -182,7 +133,8 @@
       "rin": 17,
       "createdAt": "2026-02-04T10:00:00.000Z",
       "updatedAt": "2026-02-04T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-kumho-ps71",
@@ -191,13 +143,6 @@
       "medida": "205/50R16",
       "precioCompra": 1400,
       "precioVenta": 1900,
-      "stockPorBodega": {
-        "bodega-1": 7,
-        "bodega-2": 0,
-        "bodega-3": 0,
-        "bodega-4": 3,
-        "bodega-5": 5
-      },
       "proveedor": "Kumho Dist.",
       "fechaRecepcion": "2026-02-02",
       "ancho": 205,
@@ -205,7 +150,8 @@
       "rin": 16,
       "createdAt": "2026-02-02T10:00:00.000Z",
       "updatedAt": "2026-02-02T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-firestone-fh",
@@ -214,13 +160,6 @@
       "medida": "195/55R15",
       "precioCompra": 1100,
       "precioVenta": 1600,
-      "stockPorBodega": {
-        "bodega-1": 0,
-        "bodega-2": 0,
-        "bodega-3": 0,
-        "bodega-4": 0,
-        "bodega-5": 0
-      },
       "proveedor": "Firestone MX",
       "fechaRecepcion": "2026-01-20",
       "ancho": 195,
@@ -228,7 +167,8 @@
       "rin": 15,
       "createdAt": "2026-01-20T10:00:00.000Z",
       "updatedAt": "2026-02-08T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 0
     },
     {
       "id": "llanta-bf-ko2",
@@ -237,13 +177,6 @@
       "medida": "265/70R17",
       "precioCompra": 4200,
       "precioVenta": 5500,
-      "stockPorBodega": {
-        "bodega-1": 8,
-        "bodega-2": 4,
-        "bodega-3": 7,
-        "bodega-4": 2,
-        "bodega-5": 3
-      },
       "proveedor": "BFGoodrich Dist.",
       "fechaRecepcion": "2026-02-08",
       "ancho": 265,
@@ -251,7 +184,8 @@
       "rin": 17,
       "createdAt": "2026-02-08T10:00:00.000Z",
       "updatedAt": "2026-02-13T16:53:43.214Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-dunlop-sport",
@@ -260,13 +194,6 @@
       "medida": "225/40R18",
       "precioCompra": 2600,
       "precioVenta": 3400,
-      "stockPorBodega": {
-        "bodega-1": 5,
-        "bodega-2": 3,
-        "bodega-3": 0,
-        "bodega-4": 2,
-        "bodega-5": 4
-      },
       "proveedor": "Dunlop MX",
       "fechaRecepcion": "2026-02-09",
       "ancho": 225,
@@ -274,7 +201,8 @@
       "rin": 18,
       "createdAt": "2026-02-09T10:00:00.000Z",
       "updatedAt": "2026-02-09T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-falken-ze950",
@@ -283,13 +211,6 @@
       "medida": "215/55R17",
       "precioCompra": 1700,
       "precioVenta": 2300,
-      "stockPorBodega": {
-        "bodega-1": 6,
-        "bodega-2": 4,
-        "bodega-3": 2,
-        "bodega-4": 0,
-        "bodega-5": 3
-      },
       "proveedor": "Falken Dist.",
       "fechaRecepcion": "2026-02-07",
       "ancho": 215,
@@ -297,7 +218,8 @@
       "rin": 17,
       "createdAt": "2026-02-07T10:00:00.000Z",
       "updatedAt": "2026-02-07T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-nitto-nt555",
@@ -306,13 +228,6 @@
       "medida": "275/35R20",
       "precioCompra": 4800,
       "precioVenta": 6200,
-      "stockPorBodega": {
-        "bodega-1": 2,
-        "bodega-2": 0,
-        "bodega-3": 2,
-        "bodega-4": 0,
-        "bodega-5": 0
-      },
       "proveedor": "Nitto MX",
       "fechaRecepcion": "2026-02-10",
       "ancho": 275,
@@ -320,7 +235,8 @@
       "rin": 20,
       "createdAt": "2026-02-10T10:00:00.000Z",
       "updatedAt": "2026-02-10T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 2
     },
     {
       "id": "llanta-general-at",
@@ -329,13 +245,6 @@
       "medida": "255/70R16",
       "precioCompra": 2200,
       "precioVenta": 2900,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 6,
-        "bodega-3": 0,
-        "bodega-4": 4,
-        "bodega-5": 8
-      },
       "proveedor": "General Tire Dist.",
       "fechaRecepcion": "2026-02-06",
       "ancho": 255,
@@ -343,7 +252,8 @@
       "rin": 16,
       "createdAt": "2026-02-06T10:00:00.000Z",
       "updatedAt": "2026-02-06T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-cooper-cs5",
@@ -352,13 +262,6 @@
       "medida": "215/60R16",
       "precioCompra": 1500,
       "precioVenta": 2050,
-      "stockPorBodega": {
-        "bodega-1": 8,
-        "bodega-2": 5,
-        "bodega-3": 4,
-        "bodega-4": 3,
-        "bodega-5": 6
-      },
       "proveedor": "Cooper Tires MX",
       "fechaRecepcion": "2026-02-05",
       "ancho": 215,
@@ -366,7 +269,8 @@
       "rin": 16,
       "createdAt": "2026-02-05T10:00:00.000Z",
       "updatedAt": "2026-02-05T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-mich-primacy",
@@ -375,13 +279,6 @@
       "medida": "205/60R16",
       "precioCompra": 2400,
       "precioVenta": 3200,
-      "stockPorBodega": {
-        "bodega-1": 10,
-        "bodega-2": 6,
-        "bodega-3": 4,
-        "bodega-4": 2,
-        "bodega-5": 8
-      },
       "proveedor": "Michelin Mexico",
       "fechaRecepcion": "2026-02-04",
       "ancho": 205,
@@ -389,7 +286,8 @@
       "rin": 16,
       "createdAt": "2026-02-04T10:00:00.000Z",
       "updatedAt": "2026-02-04T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-pirelli-pzero",
@@ -398,13 +296,6 @@
       "medida": "255/35R19",
       "precioCompra": 5500,
       "precioVenta": 7200,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 0,
-        "bodega-3": 2,
-        "bodega-4": 0,
-        "bodega-5": 2
-      },
       "proveedor": "Distribuidora Nacional",
       "fechaRecepcion": "2026-02-11",
       "ancho": 255,
@@ -412,7 +303,8 @@
       "rin": 19,
       "createdAt": "2026-02-11T10:00:00.000Z",
       "updatedAt": "2026-02-11T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
     },
     {
       "id": "llanta-bridg-dueler",
@@ -421,13 +313,6 @@
       "medida": "245/70R16",
       "precioCompra": 2800,
       "precioVenta": 3700,
-      "stockPorBodega": {
-        "bodega-1": 6,
-        "bodega-2": 4,
-        "bodega-3": 2,
-        "bodega-4": 4,
-        "bodega-5": 6
-      },
       "proveedor": "Bridgestone Dist.",
       "fechaRecepcion": "2026-02-03",
       "ancho": 245,
@@ -435,7 +320,8 @@
       "rin": 16,
       "createdAt": "2026-02-03T10:00:00.000Z",
       "updatedAt": "2026-02-03T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-cont-crossc",
@@ -444,13 +330,6 @@
       "medida": "235/65R17",
       "precioCompra": 2600,
       "precioVenta": 3400,
-      "stockPorBodega": {
-        "bodega-1": 5,
-        "bodega-2": 3,
-        "bodega-3": 4,
-        "bodega-4": 2,
-        "bodega-5": 4
-      },
       "proveedor": "Continental MX",
       "fechaRecepcion": "2026-02-08",
       "ancho": 235,
@@ -458,7 +337,8 @@
       "rin": 17,
       "createdAt": "2026-02-08T10:00:00.000Z",
       "updatedAt": "2026-02-08T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-hankook-k127",
@@ -467,13 +347,6 @@
       "medida": "245/45R18",
       "precioCompra": 2900,
       "precioVenta": 3800,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 2,
-        "bodega-3": 0,
-        "bodega-4": 2,
-        "bodega-5": 3
-      },
       "proveedor": "Hankook Dist.",
       "fechaRecepcion": "2026-02-09",
       "ancho": 245,
@@ -481,7 +354,8 @@
       "rin": 18,
       "createdAt": "2026-02-09T10:00:00.000Z",
       "updatedAt": "2026-02-09T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-good-assur",
@@ -490,13 +364,6 @@
       "medida": "185/65R15",
       "precioCompra": 1300,
       "precioVenta": 1800,
-      "stockPorBodega": {
-        "bodega-1": 12,
-        "bodega-2": 8,
-        "bodega-3": 6,
-        "bodega-4": 4,
-        "bodega-5": 10
-      },
       "proveedor": "Goodyear Dist.",
       "fechaRecepcion": "2026-02-01",
       "ancho": 185,
@@ -504,7 +371,8 @@
       "rin": 15,
       "createdAt": "2026-02-01T10:00:00.000Z",
       "updatedAt": "2026-02-01T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-toyo-open",
@@ -513,13 +381,6 @@
       "medida": "275/65R18",
       "precioCompra": 3800,
       "precioVenta": 4900,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 2,
-        "bodega-3": 0,
-        "bodega-4": 4,
-        "bodega-5": 2
-      },
       "proveedor": "Toyo Tires MX",
       "fechaRecepcion": "2026-02-10",
       "ancho": 275,
@@ -527,7 +388,8 @@
       "rin": 18,
       "createdAt": "2026-02-10T10:00:00.000Z",
       "updatedAt": "2026-02-10T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-yoko-geoland",
@@ -536,13 +398,6 @@
       "medida": "265/65R17",
       "precioCompra": 3200,
       "precioVenta": 4100,
-      "stockPorBodega": {
-        "bodega-1": 6,
-        "bodega-2": 4,
-        "bodega-3": 2,
-        "bodega-4": 4,
-        "bodega-5": 6
-      },
       "proveedor": "Yokohama MX",
       "fechaRecepcion": "2026-02-07",
       "ancho": 265,
@@ -550,7 +405,8 @@
       "rin": 17,
       "createdAt": "2026-02-07T10:00:00.000Z",
       "updatedAt": "2026-02-07T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-mich-ltx",
@@ -559,13 +415,6 @@
       "medida": "255/65R17",
       "precioCompra": 3400,
       "precioVenta": 4400,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 0,
-        "bodega-3": 4,
-        "bodega-4": 2,
-        "bodega-5": 4
-      },
       "proveedor": "Michelin Mexico",
       "fechaRecepcion": "2026-02-06",
       "ancho": 255,
@@ -573,7 +422,8 @@
       "rin": 17,
       "createdAt": "2026-02-06T10:00:00.000Z",
       "updatedAt": "2026-02-06T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-pirelli-scorp",
@@ -582,13 +432,6 @@
       "medida": "225/65R17",
       "precioCompra": 2700,
       "precioVenta": 3500,
-      "stockPorBodega": {
-        "bodega-1": 8,
-        "bodega-2": 4,
-        "bodega-3": 6,
-        "bodega-4": 2,
-        "bodega-5": 4
-      },
       "proveedor": "Distribuidora Nacional",
       "fechaRecepcion": "2026-02-05",
       "ancho": 225,
@@ -596,7 +439,8 @@
       "rin": 17,
       "createdAt": "2026-02-05T10:00:00.000Z",
       "updatedAt": "2026-02-05T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-nexen-nfera",
@@ -605,13 +449,6 @@
       "medida": "205/45R17",
       "precioCompra": 1400,
       "precioVenta": 1950,
-      "stockPorBodega": {
-        "bodega-1": 6,
-        "bodega-2": 4,
-        "bodega-3": 2,
-        "bodega-4": 0,
-        "bodega-5": 4
-      },
       "proveedor": "Nexen Dist.",
       "fechaRecepcion": "2026-02-04",
       "ancho": 205,
@@ -619,7 +456,8 @@
       "rin": 17,
       "createdAt": "2026-02-04T10:00:00.000Z",
       "updatedAt": "2026-02-04T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 4
     },
     {
       "id": "llanta-sumitomo-htr",
@@ -628,13 +466,6 @@
       "medida": "225/55R17",
       "precioCompra": 1600,
       "precioVenta": 2150,
-      "stockPorBodega": {
-        "bodega-1": 5,
-        "bodega-2": 3,
-        "bodega-3": 4,
-        "bodega-4": 2,
-        "bodega-5": 4
-      },
       "proveedor": "Sumitomo MX",
       "fechaRecepcion": "2026-02-03",
       "ancho": 225,
@@ -642,7 +473,8 @@
       "rin": 17,
       "createdAt": "2026-02-03T10:00:00.000Z",
       "updatedAt": "2026-02-03T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-maxxis-hp5",
@@ -651,13 +483,6 @@
       "medida": "195/60R15",
       "precioCompra": 1100,
       "precioVenta": 1550,
-      "stockPorBodega": {
-        "bodega-1": 10,
-        "bodega-2": 6,
-        "bodega-3": 4,
-        "bodega-4": 4,
-        "bodega-5": 8
-      },
       "proveedor": "Maxxis Dist.",
       "fechaRecepcion": "2026-02-02",
       "ancho": 195,
@@ -665,7 +490,8 @@
       "rin": 15,
       "createdAt": "2026-02-02T10:00:00.000Z",
       "updatedAt": "2026-02-02T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 5
     },
     {
       "id": "llanta-federal-595",
@@ -674,13 +500,6 @@
       "medida": "235/45R17",
       "precioCompra": 1800,
       "precioVenta": 2400,
-      "stockPorBodega": {
-        "bodega-1": 4,
-        "bodega-2": 2,
-        "bodega-3": 0,
-        "bodega-4": 0,
-        "bodega-5": 2
-      },
       "proveedor": "Federal Tires MX",
       "fechaRecepcion": "2026-02-01",
       "ancho": 235,
@@ -688,7 +507,25 @@
       "rin": 17,
       "createdAt": "2026-02-01T10:00:00.000Z",
       "updatedAt": "2026-02-01T10:00:00.000Z",
-      "activo": true
+      "activo": true,
+      "stock": 3
+    },
+    {
+      "id": "1771947982702-z6dsy2e",
+      "marca": "Bridgestone",
+      "modelo": "adsadas",
+      "medida": "205/55R16",
+      "ancho": 205,
+      "perfil": 55,
+      "rin": 16,
+      "precioCompra": 500,
+      "precioVenta": 1000,
+      "proveedor": "Distribuidora Nacional",
+      "fechaRecepcion": "2026-02-24",
+      "createdAt": "2026-02-24T15:46:22.701Z",
+      "updatedAt": "2026-02-24T15:46:22.701Z",
+      "activo": true,
+      "stock": 2
     }
   ],
   "movimientos": [
@@ -718,7 +555,7 @@
     }
   ],
   "metadata": {
-    "lastUpdated": "2026-02-13T16:53:43.214Z",
+    "lastUpdated": "2026-02-24T16:25:17.416Z",
     "version": 2
   }
 }

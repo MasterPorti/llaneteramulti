@@ -1,13 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout";
-import { Card, CardBody, CardHeader, Button } from "@/components/ui";
-import {
-  ShoppingCart,
-  Package,
-  Wrench,
-  Plus,
-  ClipboardList,
-} from "lucide-react";
+import { Card, CardBody } from "@/components/ui";
+import { ShoppingCart, Package, Wrench } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -55,7 +49,7 @@ export default function HomePage() {
           </Card>
         </Link>
 
-        <Link href="/inventario">
+        <Link href="/llantas">
           <Card className="hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer h-full">
             <CardBody className="py-8">
               <div className="text-center">

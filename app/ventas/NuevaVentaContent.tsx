@@ -12,25 +12,25 @@ import {
   CreditCard,
   Banknote,
   ArrowLeftRight,
-  ShieldCheck,
   CirclePlus,
   ScanBarcode,
+  ShoppingBag,
 } from 'lucide-react';
-import { obtenerInventario } from '@/app/inventario/actions';
+import { obtenerInventario } from '@/app/llantas/actions';
 import { obtenerServicios } from '@/app/servicios/actions';
+import { obtenerProductos } from '@/app/productos/actions';
 import { crearVenta } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
-import { BODEGAS, CONFIG } from '@/lib/config';
-import { getTotalStock, type Llanta, type Servicio, type BodegaId, type VentaInput } from '@/types';
+import { CONFIG } from '@/lib/config';
+import { getTotalStock, type Llanta, type Servicio, type Producto, type VentaInput } from '@/types';
 
-type TabType = 'productos' | 'servicios';
+type TabType = 'servicios' | 'productos' | 'llantas';
 type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia';
 
-interface CartItemProducto {
+interface CartItemLlanta {
   tipo: 'producto';
   id: string;
   llanta: Llanta;
-  bodega: BodegaId;
   cantidad: number;
   precioUnitario: number;
 }
@@ -43,13 +43,29 @@ interface CartItemServicio {
   precioUnitario: number;
 }
 
-type CartItem = CartItemProducto | CartItemServicio;
+interface CartItemExtra {
+  tipo: 'extra';
+  id: string;
+  nombre: string;
+  cantidad: number;
+  precioUnitario: number;
+}
+
+interface CartItemCatalogo {
+  tipo: 'catalogo';
+  id: string;
+  producto: Producto;
+  cantidad: number;
+  precioUnitario: number;
+}
+
+type CartItem = CartItemLlanta | CartItemServicio | CartItemExtra | CartItemCatalogo;
 
 interface NuevaVentaContentProps {
   defaultTab?: TabType;
 }
 
-export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVentaContentProps) {
+export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVentaContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const llantaIdParam = searchParams.get('llantaId');
@@ -59,17 +75,22 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
   // Data
   const [inventario, setInventario] = useState<Llanta[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [catalogoProductos, setCatalogoProductos] = useState<Producto[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Tab
   const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
 
-  // Product selection
+  // Llantas tab selection
   const [searchTerm, setSearchTerm] = useState('');
   const [productoSeleccionado, setProductoSeleccionado] = useState<Llanta | null>(null);
-  const [bodegaSeleccionada, setBodegaSeleccionada] = useState<BodegaId | ''>('');
   const [cantidadProducto, setCantidadProducto] = useState(1);
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Productos tab (generic products)
+  const [productoNombre, setProductoNombre] = useState('');
+  const [productoPrecioStr, setProductoPrecioStr] = useState('');
+  const [productoCantidad, setProductoCantidad] = useState(1);
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -80,8 +101,10 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
 
   // Payment
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo');
-  const [diasGarantia, setDiasGarantia] = useState<number>(0);
   const generarFactura = false;
+
+  // Editable prices in cart (index -> string value while typing)
+  const [editingPrices, setEditingPrices] = useState<Record<number, string>>({});
 
   // Extra quick-add
   const [extraPrecio, setExtraPrecio] = useState('50');
@@ -97,9 +120,10 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
   useEffect(() => {
     async function loadData() {
       setDataLoading(true);
-      const [invResult, servResult] = await Promise.all([
+      const [invResult, servResult, prodResult] = await Promise.all([
         obtenerInventario(),
         obtenerServicios(),
+        obtenerProductos(),
       ]);
 
       if (invResult.success && invResult.data) {
@@ -107,6 +131,9 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
       }
       if (servResult.success && servResult.data) {
         setServicios(servResult.data.filter((s) => s.activo));
+      }
+      if (prodResult.success && prodResult.data) {
+        setCatalogoProductos(prodResult.data);
       }
       setDataLoading(false);
     }
@@ -120,7 +147,7 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
       if (llanta) {
         setProductoSeleccionado(llanta);
         setSearchTerm(`${llanta.marca} ${llanta.modelo} - ${llanta.medida}`);
-        setActiveTab('productos');
+        setActiveTab('llantas');
       }
     }
   }, [llantaIdParam, inventario, productoSeleccionado]);
@@ -129,7 +156,6 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
   const handleBarcodeSubmit = useCallback((code: string) => {
     const servicio = servicios.find((s) => s.codigoBarras === code);
     if (servicio) {
-      // Add service to cart (inline to avoid dependency on addServiceToCart)
       setCartItems((prevItems) => {
         const existingItem = prevItems.find(
           (item) => item.tipo === 'servicio' && item.id === servicio.id
@@ -162,20 +188,17 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
   // Barcode scanner keyboard listener
   useEffect(() => {
     if (activeTab !== 'servicios') {
-      // Clear buffer when leaving servicios tab
       barcodeBufferRef.current = '';
       setBarcodeBuffer('');
       return;
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if focus is on an input element
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
         return;
       }
 
-      // Clear timeout on each keystroke
       if (barcodeTimeoutRef.current) {
         clearTimeout(barcodeTimeoutRef.current);
       }
@@ -191,13 +214,11 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
         return;
       }
 
-      // Only accept alphanumeric characters for barcode
       if (e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key)) {
         e.preventDefault();
         barcodeBufferRef.current += e.key.toUpperCase();
         setBarcodeBuffer(barcodeBufferRef.current);
 
-        // Auto-clear buffer after 500ms of inactivity (scanner types fast)
         barcodeTimeoutRef.current = setTimeout(() => {
           barcodeBufferRef.current = '';
           setBarcodeBuffer('');
@@ -214,7 +235,7 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
     };
   }, [activeTab, handleBarcodeSubmit]);
 
-  // Filtered products for search
+  // Filtered llantas for search
   const filteredProducts = inventario.filter((l) => {
     if (!searchTerm.trim()) return false;
     const term = searchTerm.toLowerCase();
@@ -227,33 +248,29 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
     );
   });
 
-  // Select a product from dropdown
+  // Select a llanta from dropdown
   const selectProduct = (llanta: Llanta) => {
     setProductoSeleccionado(llanta);
     setSearchTerm(`${llanta.marca} ${llanta.modelo} - ${llanta.medida}`);
     setShowDropdown(false);
-    setBodegaSeleccionada('');
     setCantidadProducto(1);
   };
 
-  // Add product to cart
+  // Add llanta to cart (always uses bodega-1)
   const addProductToCart = () => {
-    if (!productoSeleccionado || !bodegaSeleccionada) return;
+    if (!productoSeleccionado) return;
 
-    const stockEnBodega = productoSeleccionado.stockPorBodega[bodegaSeleccionada] || 0;
+    const stockDisponible = getTotalStock(productoSeleccionado);
 
     const existingItem = cartItems.find(
-      (item) =>
-        item.tipo === 'producto' &&
-        item.id === productoSeleccionado.id &&
-        (item as CartItemProducto).bodega === bodegaSeleccionada
-    ) as CartItemProducto | undefined;
+      (item) => item.tipo === 'producto' && item.id === productoSeleccionado.id
+    ) as CartItemLlanta | undefined;
 
     const alreadyInCart = existingItem ? existingItem.cantidad : 0;
-    const available = stockEnBodega - alreadyInCart;
+    const available = stockDisponible - alreadyInCart;
 
     if (cantidadProducto > available) {
-      setError(`Solo hay ${available} unidades disponibles en esta bodega${alreadyInCart > 0 ? ` (${alreadyInCart} ya en el carrito)` : ''}`);
+      setError(`Solo hay ${available} unidades disponibles${alreadyInCart > 0 ? ` (${alreadyInCart} ya en el carrito)` : ''}`);
       return;
     }
 
@@ -265,19 +282,16 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
     if (existingItem) {
       setCartItems(
         cartItems.map((item) =>
-          item.tipo === 'producto' &&
-          item.id === productoSeleccionado.id &&
-          (item as CartItemProducto).bodega === bodegaSeleccionada
+          item.tipo === 'producto' && item.id === productoSeleccionado.id
             ? { ...item, cantidad: item.cantidad + cantidadProducto }
             : item
         )
       );
     } else {
-      const newItem: CartItemProducto = {
+      const newItem: CartItemLlanta = {
         tipo: 'producto',
         id: productoSeleccionado.id,
         llanta: productoSeleccionado,
-        bodega: bodegaSeleccionada,
         cantidad: cantidadProducto,
         precioUnitario: productoSeleccionado.precioVenta,
       };
@@ -286,8 +300,66 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
 
     setProductoSeleccionado(null);
     setSearchTerm('');
-    setBodegaSeleccionada('');
     setCantidadProducto(1);
+    setError('');
+  };
+
+  // Add catalog product to cart
+  const addCatalogoToCart = (producto: Producto) => {
+    if (producto.stock === 0) return;
+
+    const existing = cartItems.find(
+      (item) => item.tipo === 'catalogo' && item.id === producto.id
+    ) as CartItemCatalogo | undefined;
+
+    const alreadyInCart = existing ? existing.cantidad : 0;
+    if (alreadyInCart >= producto.stock) {
+      setError(`Solo hay ${producto.stock} unidades disponibles de "${producto.nombre}"`);
+      return;
+    }
+
+    if (existing) {
+      setCartItems(cartItems.map((item) =>
+        item.tipo === 'catalogo' && item.id === producto.id
+          ? { ...item, cantidad: item.cantidad + 1 }
+          : item
+      ));
+    } else {
+      const newItem: CartItemCatalogo = {
+        tipo: 'catalogo',
+        id: producto.id,
+        producto,
+        cantidad: 1,
+        precioUnitario: producto.precio,
+      };
+      setCartItems([...cartItems, newItem]);
+    }
+    setError('');
+  };
+
+  // Add generic product to cart
+  const addExtraProductToCart = () => {
+    if (!productoNombre.trim()) {
+      setError('Ingresa el nombre del producto');
+      return;
+    }
+    const precio = parseFloat(productoPrecioStr) || 0;
+    if (precio <= 0) {
+      setError('Ingresa un precio válido');
+      return;
+    }
+
+    const newItem: CartItemExtra = {
+      tipo: 'extra',
+      id: `extra-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      nombre: productoNombre.trim(),
+      cantidad: productoCantidad,
+      precioUnitario: precio,
+    };
+    setCartItems([...cartItems, newItem]);
+    setProductoNombre('');
+    setProductoPrecioStr('');
+    setProductoCantidad(1);
     setError('');
   };
 
@@ -317,7 +389,7 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
     }
   };
 
-  // Add extra to cart (always new line item)
+  // Add extra to cart (quick-add in servicios tab)
   const addExtraToCart = () => {
     const precio = parseFloat(extraPrecio) || 0;
     if (precio <= 0) return;
@@ -352,10 +424,16 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
 
     const item = cartItems[index];
     if (item.tipo === 'producto') {
-      const productItem = item as CartItemProducto;
-      const stockEnBodega = productItem.llanta.stockPorBodega[productItem.bodega] || 0;
-      if (newQty > stockEnBodega) {
-        setError(`Solo hay ${stockEnBodega} unidades disponibles`);
+      const productItem = item as CartItemLlanta;
+      const stockDisponible = getTotalStock(productItem.llanta);
+      if (newQty > stockDisponible) {
+        setError(`Solo hay ${stockDisponible} unidades disponibles`);
+        return;
+      }
+    } else if (item.tipo === 'catalogo') {
+      const catItem = item as CartItemCatalogo;
+      if (newQty > catItem.producto.stock) {
+        setError(`Solo hay ${catItem.producto.stock} unidades disponibles`);
         return;
       }
     }
@@ -382,8 +460,8 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
   const subtotal = cartItems.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
   const total = subtotal;
 
-  // Check if cart has products (not just services)
-  const hasProducts = cartItems.some((item) => item.tipo === 'producto');
+  // Check if cart has llantas (requires client name)
+  const hasLlantas = cartItems.some((item) => item.tipo === 'producto');
 
   // Submit sale
   const handleSubmit = async () => {
@@ -392,11 +470,6 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
       return;
     }
 
-    // Client name required only if there are products
-    if (hasProducts && !clienteNombre.trim()) {
-      setError('Ingresa el nombre del cliente');
-      return;
-    }
 
     setLoading(true);
     setError('');
@@ -406,13 +479,30 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
       clienteTelefono: clienteTelefono.trim() || undefined,
       items: cartItems.map((item) => {
         if (item.tipo === 'producto') {
-          const prodItem = item as CartItemProducto;
+          const prodItem = item as CartItemLlanta;
           return {
             tipo: 'producto' as const,
             id: prodItem.id,
             cantidad: prodItem.cantidad,
-            bodega: prodItem.bodega,
+            bodega: 'bodega-1' as const,
             precioCustom: prodItem.precioUnitario !== prodItem.llanta.precioVenta ? prodItem.precioUnitario : undefined,
+          };
+        } else if (item.tipo === 'catalogo') {
+          const catItem = item as CartItemCatalogo;
+          return {
+            tipo: 'catalogo' as const,
+            id: catItem.id,
+            cantidad: catItem.cantidad,
+            precioCustom: catItem.precioUnitario !== catItem.producto.precio ? catItem.precioUnitario : undefined,
+          };
+        } else if (item.tipo === 'extra') {
+          const extraItem = item as CartItemExtra;
+          return {
+            tipo: 'extra' as const,
+            id: extraItem.id,
+            nombre: extraItem.nombre,
+            cantidad: extraItem.cantidad,
+            precioCustom: extraItem.precioUnitario,
           };
         } else {
           const servItem = item as CartItemServicio;
@@ -425,7 +515,7 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
         }
       }),
       metodoPago,
-      diasGarantia,
+      diasGarantia: 0,
       generarFactura,
     };
 
@@ -437,10 +527,6 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
       setError(result.error || 'Error al crear la venta');
       setLoading(false);
     }
-  };
-
-  const getBodegaNombre = (id: BodegaId) => {
-    return BODEGAS.find((b) => b.id === id)?.nombre || id;
   };
 
   if (dataLoading) {
@@ -466,23 +552,11 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* LEFT COLUMN: Products/Services and Cart */}
+        {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
           {/* Tabs */}
           <div className="card">
             <div className="flex border-b">
-              <button
-                type="button"
-                onClick={() => setActiveTab('productos')}
-                className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === 'productos'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Package className="w-4 h-4" />
-                Productos
-              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('servicios')}
@@ -495,11 +569,172 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                 <Wrench className="w-4 h-4" />
                 Servicios
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('productos')}
+                className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'productos'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Productos
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('llantas')}
+                className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'llantas'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                Llantas
+              </button>
             </div>
 
             <div className="card-body">
-              {/* Products Tab */}
+              {/* Servicios Tab */}
+              {activeTab === 'servicios' && (
+                <div className="space-y-4">
+                  {/* Barcode Scanner Indicator */}
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                    barcodeBuffer
+                      ? 'border-green-400 bg-green-50'
+                      : 'border-dashed border-gray-300 bg-gray-50'
+                  }`}>
+                    <ScanBarcode className={`w-5 h-5 ${barcodeBuffer ? 'text-green-600' : 'text-gray-400'}`} />
+                    <div className="flex-1">
+                      {barcodeBuffer ? (
+                        <p className="text-sm font-mono font-bold text-green-700">{barcodeBuffer}</p>
+                      ) : (
+                        <p className="text-sm text-gray-500">Escanea un codigo de barras o haz clic en un servicio</p>
+                      )}
+                    </div>
+                    {lastScannedService && (
+                      <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full animate-pulse">
+                        {lastScannedService} agregado
+                      </span>
+                    )}
+                  </div>
+
+                  {servicios.length === 0 ? (
+                    <p className="text-center py-8 text-gray-500">No hay servicios configurados</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {servicios.map((servicio) => (
+                        <button
+                          key={servicio.id}
+                          type="button"
+                          onClick={() => addServiceToCart(servicio)}
+                          className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-left group"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <Wrench className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium text-sm">{servicio.nombre}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mb-1 line-clamp-2">{servicio.descripcion}</p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-bold text-blue-600">
+                              {formatCurrency(servicio.precioDefault)}
+                            </p>
+                            <span className="text-xs font-mono text-gray-400">{servicio.codigoBarras}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Quick-add extra */}
+                  <div className="border-t pt-4">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Extra / Material adicional</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        className="input flex-1"
+                        placeholder="Nota (opcional)"
+                        value={extraNota}
+                        onChange={(e) => setExtraNota(e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        className="input w-24"
+                        placeholder="Precio"
+                        value={extraPrecio}
+                        onChange={(e) => setExtraPrecio(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary flex items-center gap-1"
+                        onClick={addExtraToCart}
+                      >
+                        <CirclePlus className="w-4 h-4" />
+                        Agregar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Productos Tab (catalog) */}
               {activeTab === 'productos' && (
+                <div className="space-y-4">
+                  {catalogoProductos.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <ShoppingBag className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No hay productos en el catálogo.</p>
+                      <a href="/productos/nuevo" className="text-blue-500 text-sm hover:underline">
+                        Agregar productos
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {catalogoProductos.map((producto) => {
+                        const enCarrito = cartItems
+                          .filter((i) => i.tipo === 'catalogo' && i.id === producto.id)
+                          .reduce((s, i) => s + i.cantidad, 0);
+                        const disponible = producto.stock - enCarrito;
+                        return (
+                          <button
+                            key={producto.id}
+                            type="button"
+                            onClick={() => addCatalogoToCart(producto)}
+                            disabled={disponible <= 0}
+                            className={`p-4 border-2 rounded-lg transition-all text-left group ${
+                              disponible > 0
+                                ? 'border-gray-200 hover:border-orange-400 hover:bg-orange-50'
+                                : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <ShoppingBag className="w-4 h-4 text-gray-400 group-hover:text-orange-500 shrink-0" />
+                              <span className="font-medium text-sm line-clamp-1">{producto.nombre}</span>
+                            </div>
+                            {producto.descripcion && (
+                              <p className="text-xs text-gray-500 mb-1 line-clamp-1">{producto.descripcion}</p>
+                            )}
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-sm font-bold text-orange-600">
+                                {formatCurrency(producto.precio)}
+                              </p>
+                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                disponible > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                              }`}>
+                                {disponible} disp.
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Llantas Tab */}
+              {activeTab === 'llantas' && (
                 <div className="space-y-4">
                   {/* Search */}
                   <div className="relative">
@@ -509,7 +744,7 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                         type="text"
                         className="input"
                         style={{ paddingLeft: '2.5rem' }}
-                        placeholder="Buscar producto por marca, modelo o medida..."
+                        placeholder="Buscar por marca, modelo o medida..."
                         value={searchTerm}
                         onChange={(e) => {
                           setSearchTerm(e.target.value);
@@ -562,80 +797,35 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
 
                     {showDropdown && searchTerm.trim() && filteredProducts.length === 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
-                        No se encontraron productos
+                        No se encontraron llantas
                       </div>
                     )}
                   </div>
 
-                  {/* Selected Product Info */}
+                  {/* Selected Llanta Info */}
                   {productoSeleccionado && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-semibold text-blue-900">
-                            {productoSeleccionado.marca} {productoSeleccionado.modelo}
-                          </h4>
-                          <p className="text-sm text-blue-700">{productoSeleccionado.medida}</p>
-                          <p className="text-lg font-bold text-blue-800 mt-1">
-                            {formatCurrency(productoSeleccionado.precioVenta)}
-                          </p>
-                        </div>
+                      <div className="mb-3">
+                        <h4 className="font-semibold text-blue-900">
+                          {productoSeleccionado.marca} {productoSeleccionado.modelo}
+                        </h4>
+                        <p className="text-sm text-blue-700">{productoSeleccionado.medida}</p>
+                        <p className="text-lg font-bold text-blue-800 mt-1">
+                          {formatCurrency(productoSeleccionado.precioVenta)}
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          {getTotalStock(productoSeleccionado)} unidades disponibles
+                        </p>
                       </div>
 
-                      {/* Stock per bodega */}
-                      <div className="mb-4">
-                        <p className="text-xs font-medium text-blue-800 mb-2">Stock por bodega:</p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {BODEGAS.map((bodega) => {
-                            const stock = productoSeleccionado.stockPorBodega[bodega.id] || 0;
-                            return (
-                              <div
-                                key={bodega.id}
-                                className={`text-center p-2 rounded text-xs ${
-                                  stock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-400'
-                                }`}
-                              >
-                                <p className="font-medium">{bodega.nombre}</p>
-                                <p className="text-lg font-bold">{stock}</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Bodega selection + Quantity + Add button */}
                       <div className="flex gap-3 items-end">
-                        <div className="flex-1">
-                          <label className="label text-blue-800">Bodega</label>
-                          <select
-                            className="select"
-                            value={bodegaSeleccionada}
-                            onChange={(e) => {
-                              setBodegaSeleccionada(e.target.value as BodegaId);
-                              setCantidadProducto(1);
-                            }}
-                          >
-                            <option value="" disabled>Seleccionar bodega</option>
-                            {BODEGAS.filter((b) => (productoSeleccionado.stockPorBodega[b.id] || 0) > 0).map(
-                              (bodega) => (
-                                <option key={bodega.id} value={bodega.id}>
-                                  {bodega.nombre} ({productoSeleccionado.stockPorBodega[bodega.id]} disp.)
-                                </option>
-                              )
-                            )}
-                          </select>
-                        </div>
-                        <div className="w-24">
+                        <div className="w-28">
                           <label className="label text-blue-800">Cantidad</label>
                           <input
                             type="number"
                             className="input"
                             min={1}
-                            max={
-                              bodegaSeleccionada
-                                ? productoSeleccionado.stockPorBodega[bodegaSeleccionada] || 0
-                                : 1
-                            }
+                            max={getTotalStock(productoSeleccionado)}
                             value={cantidadProducto}
                             onChange={(e) => setCantidadProducto(parseInt(e.target.value) || 1)}
                           />
@@ -644,65 +834,11 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                           type="button"
                           className="btn btn-primary flex items-center gap-2"
                           onClick={addProductToCart}
-                          disabled={!bodegaSeleccionada}
                         >
                           <Plus className="w-4 h-4" />
                           Agregar
                         </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Services Tab */}
-              {activeTab === 'servicios' && (
-                <div className="space-y-4">
-                  {/* Barcode Scanner Indicator */}
-                  <div className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
-                    barcodeBuffer
-                      ? 'border-green-400 bg-green-50'
-                      : 'border-dashed border-gray-300 bg-gray-50'
-                  }`}>
-                    <ScanBarcode className={`w-5 h-5 ${barcodeBuffer ? 'text-green-600' : 'text-gray-400'}`} />
-                    <div className="flex-1">
-                      {barcodeBuffer ? (
-                        <p className="text-sm font-mono font-bold text-green-700">{barcodeBuffer}</p>
-                      ) : (
-                        <p className="text-sm text-gray-500">Escanea un codigo de barras o haz clic en un servicio</p>
-                      )}
-                    </div>
-                    {lastScannedService && (
-                      <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full animate-pulse">
-                        {lastScannedService} agregado
-                      </span>
-                    )}
-                  </div>
-
-                  {servicios.length === 0 ? (
-                    <p className="text-center py-8 text-gray-500">No hay servicios configurados</p>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {servicios.map((servicio) => (
-                        <button
-                          key={servicio.id}
-                          type="button"
-                          onClick={() => addServiceToCart(servicio)}
-                          className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-left group"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Wrench className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium text-sm">{servicio.nombre}</span>
-                          </div>
-                          <p className="text-xs text-gray-500 mb-1 line-clamp-2">{servicio.descripcion}</p>
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-bold text-blue-600">
-                              {formatCurrency(servicio.precioDefault)}
-                            </p>
-                            <span className="text-xs font-mono text-gray-400">{servicio.codigoBarras}</span>
-                          </div>
-                        </button>
-                      ))}
                     </div>
                   )}
                 </div>
@@ -726,13 +862,12 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="label">
-                    Nombre del cliente {hasProducts && <span className="text-red-600">*</span>}
-                    {!hasProducts && <span className="text-gray-400 text-xs ml-1">(opcional)</span>}
+                    Nombre del cliente <span className="text-gray-400 text-xs ml-1">(opcional)</span>
                   </label>
                   <input
                     type="text"
                     className="input"
-                    placeholder={hasProducts ? 'Nombre del cliente' : 'Cliente general'}
+                    placeholder="Cliente general"
                     value={clienteNombre}
                     onChange={(e) => setClienteNombre(e.target.value)}
                   />
@@ -801,11 +936,11 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
             </div>
           </div>
 
-          {/* Cart / Items List */}
+          {/* Cart */}
           <div className="card">
             <div className="card-header flex items-center justify-between">
               <h2 className="font-semibold">
-                Productos y servicios ({cartItems.length})
+                Carrito ({cartItems.length})
               </h2>
               <div className="text-right">
                 <span className="text-sm text-gray-500 mr-2">Total:</span>
@@ -827,10 +962,13 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                     >
                       {/* Icon */}
                       <div className={`p-1.5 rounded shrink-0 ${
-                        item.tipo === 'producto' ? 'bg-blue-100' : 'bg-amber-100'
+                        item.tipo === 'producto' ? 'bg-blue-100' :
+                        item.tipo === 'catalogo' || item.tipo === 'extra' ? 'bg-orange-100' : 'bg-amber-100'
                       }`}>
                         {item.tipo === 'producto' ? (
                           <Package className="w-3 h-3 text-blue-600" />
+                        ) : item.tipo === 'catalogo' || item.tipo === 'extra' ? (
+                          <ShoppingBag className="w-3 h-3 text-orange-600" />
                         ) : (
                           <Wrench className="w-3 h-3 text-amber-600" />
                         )}
@@ -840,9 +978,13 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                       <div className="flex-1 min-w-0">
                         {item.tipo === 'producto' ? (
                           <p className="font-medium text-sm">
-                            {(item as CartItemProducto).llanta.marca}{' '}
-                            {(item as CartItemProducto).llanta.modelo}
+                            {(item as CartItemLlanta).llanta.marca}{' '}
+                            {(item as CartItemLlanta).llanta.modelo}
                           </p>
+                        ) : item.tipo === 'catalogo' ? (
+                          <p className="font-medium text-sm">{(item as CartItemCatalogo).producto.nombre}</p>
+                        ) : item.tipo === 'extra' ? (
+                          <p className="font-medium text-sm">{(item as CartItemExtra).nombre}</p>
                         ) : (
                           <p className="font-medium text-sm">
                             {(item as CartItemServicio).servicio.nombre}
@@ -869,11 +1011,37 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                         </button>
                       </div>
 
-                      {/* Price */}
-                      <div className="w-20 text-right shrink-0">
-                        <p className="font-medium text-sm">
-                          {formatCurrency(item.precioUnitario * item.cantidad)}
-                        </p>
+                      {/* Price (editable) */}
+                      <div className="shrink-0 flex flex-col items-end gap-0.5">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="w-20 text-right text-sm font-medium border border-gray-100 hover:border-gray-300 focus:border-blue-400 focus:outline-none rounded px-1 py-0.5 bg-transparent focus:bg-white"
+                          value={editingPrices[index] ?? item.precioUnitario.toString()}
+                          title="Precio unitario"
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) {
+                              setEditingPrices((prev) => ({ ...prev, [index]: v }));
+                              const num = parseFloat(v);
+                              if (!isNaN(num) && num >= 0) updateItemPrice(index, num);
+                            }
+                          }}
+                          onFocus={(e) => {
+                            setEditingPrices((prev) => ({ ...prev, [index]: item.precioUnitario.toString() }));
+                            e.target.select();
+                          }}
+                          onBlur={() => {
+                            setEditingPrices((prev) => {
+                              const next = { ...prev };
+                              delete next[index];
+                              return next;
+                            });
+                          }}
+                        />
+                        {item.cantidad > 1 && (
+                          <p className="text-xs text-gray-400">= {formatCurrency(item.precioUnitario * item.cantidad)}</p>
+                        )}
                       </div>
 
                       {/* Remove */}
@@ -888,31 +1056,6 @@ export default function NuevaVentaContent({ defaultTab = 'productos' }: NuevaVen
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Warranty */}
-          <div className="card">
-            <div className="card-header">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-gray-500" />
-                <h2 className="font-semibold">Garantia</h2>
-              </div>
-            </div>
-            <div className="card-body">
-              <label className="label">Dias de garantia</label>
-              <select
-                className="select"
-                value={diasGarantia}
-                onChange={(e) => setDiasGarantia(parseInt(e.target.value))}
-              >
-                <option value={0}>No aplica</option>
-                <option value={30}>30 dias</option>
-                <option value={60}>60 dias</option>
-                <option value={90}>90 dias</option>
-                <option value={180}>180 dias</option>
-                <option value={365}>1 ano</option>
-              </select>
             </div>
           </div>
 

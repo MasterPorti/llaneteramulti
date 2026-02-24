@@ -1,6 +1,7 @@
 export * from './inventario';
 export * from './ventas';
 export * from './servicios';
+export * from './productos';
 
 export interface ActionResponse<T = unknown> {
   success: boolean;
