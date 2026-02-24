@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/layout';
 import { Card, CardBody, Badge } from '@/components/ui';
 import { obtenerVentas } from './actions';
 import { formatCurrency, formatDateShort } from '@/lib/utils/formatters';
-import type { SistemaVenta } from '@/types/inventario';
+import type { SistemaVenta } from '@/types/sistema';
 
 export default function VentasPage() {
   const [ventas, setVentas] = useState<SistemaVenta[]>([]);

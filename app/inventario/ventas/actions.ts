@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import type { SistemaVenta, SistemaVentaInput, SistemaActionResponse } from '@/types/inventario';
+import type { SistemaVenta, SistemaVentaInput, SistemaActionResponse } from '@/types/sistema';
 import {
   crearVentaSistema,
   obtenerVentasSistema,

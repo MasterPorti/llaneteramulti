@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import type { Llanta, LlantaInput, BodegaId } from '@/types';
-import type { SistemaActionResponse } from '@/types/inventario';
+import type { SistemaActionResponse } from '@/types/sistema';
 import {
   obtenerInventarioSistema,
   obtenerLlantaSistema,

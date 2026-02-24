@@ -21,7 +21,8 @@
       "Bash(echo:*)",
       "Bash(done)",
       "Bash(node -e \"const fs=require\\(''fs''\\); const raw=JSON.parse\\(fs.readFileSync\\(''data/inventario.json'',''utf8''\\)\\); console.log\\(typeof raw, Array.isArray\\(raw\\), Object.keys\\(raw\\).slice\\(0,3\\)\\)\")",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(xargs sed -i \"s|from ''@/types/inventario''|from ''@/types/sistema''|g\")"
     ]
   }
 }

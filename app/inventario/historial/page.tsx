@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
 import { obtenerResumen } from '../ventas/actions';
 import { formatCurrency, formatDateShort } from '@/lib/utils/formatters';
-import type { SistemaVenta } from '@/types/inventario';
+import type { SistemaVenta } from '@/types/sistema';
 
 export default function HistorialPage() {
   const [ventas, setVentas] = useState<SistemaVenta[]>([]);

@@ -1,6 +1,6 @@
 'use server';
 
-import type { SistemaActionResponse, SistemaVenta, GarantiaSistema } from '@/types/inventario';
+import type { SistemaActionResponse, SistemaVenta, GarantiaSistema } from '@/types/sistema';
 import { buscarGarantiaPorId, obtenerGarantiasActivas } from '@/lib/data/sistema-ventas';
 
 export async function buscarGarantia(

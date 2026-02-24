@@ -8,7 +8,7 @@ import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
 import { buscarGarantia, obtenerGarantias } from './actions';
 import { formatCurrency, formatDateShort } from '@/lib/utils/formatters';
 import { generarCodigoAuxiliar } from '@/lib/config-sistema';
-import type { SistemaVenta, GarantiaSistema } from '@/types/inventario';
+import type { SistemaVenta, GarantiaSistema } from '@/types/sistema';
 
 export default function GarantiasPage() {
   const [busqueda, setBusqueda] = useState('');
