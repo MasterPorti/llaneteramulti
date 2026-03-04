@@ -73,6 +73,23 @@ export function TicketPrint({ venta }: Props) {
 
       <div className="ticket-divider" />
 
+      {(() => {
+        const subtotalSinIva = venta.total / 1.16;
+        const iva = venta.total - subtotalSinIva;
+        return (
+          <>
+            <div className="ticket-row">
+              <span>Subtotal:</span>
+              <span>{formatCurrency(subtotalSinIva)}</span>
+            </div>
+            <div className="ticket-row">
+              <span>IVA (16%):</span>
+              <span>{formatCurrency(iva)}</span>
+            </div>
+          </>
+        );
+      })()}
+
       <div className="ticket-row ticket-total">
         <span>TOTAL:</span>
         <span>{formatCurrency(venta.total)}</span>

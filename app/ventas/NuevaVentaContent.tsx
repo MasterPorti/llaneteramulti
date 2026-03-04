@@ -21,7 +21,6 @@ import { obtenerServicios } from '@/app/servicios/actions';
 import { obtenerProductos } from '@/app/productos/actions';
 import { crearVenta } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
-import { CONFIG } from '@/lib/config';
 import { getTotalStock, type Llanta, type Servicio, type Producto, type VentaInput } from '@/types';
 
 type TabType = 'servicios' | 'productos' | 'llantas';
@@ -85,12 +84,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   const [searchTerm, setSearchTerm] = useState('');
   const [productoSeleccionado, setProductoSeleccionado] = useState<Llanta | null>(null);
   const [cantidadProducto, setCantidadProducto] = useState(1);
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  // Productos tab (generic products)
-  const [productoNombre, setProductoNombre] = useState('');
-  const [productoPrecioStr, setProductoPrecioStr] = useState('');
-  const [productoCantidad, setProductoCantidad] = useState(1);
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -237,24 +230,19 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
 
   // Filtered llantas for search
   const filteredProducts = inventario.filter((l) => {
-    if (!searchTerm.trim()) return false;
+    if (!searchTerm.trim()) return getTotalStock(l) > 0;
     const term = searchTerm.toLowerCase();
+    const termNorm = term.replace(/[/rR\s-]/g, '');
+    const medidaNorm = l.medida.toLowerCase().replace(/[/rR\s-]/g, '');
     return (
       l.marca.toLowerCase().includes(term) ||
       l.modelo.toLowerCase().includes(term) ||
       l.medida.toLowerCase().includes(term) ||
+      medidaNorm.includes(termNorm) ||
       `${l.marca} ${l.modelo}`.toLowerCase().includes(term) ||
       `${l.marca} ${l.modelo} ${l.medida}`.toLowerCase().includes(term)
     );
   });
-
-  // Select a llanta from dropdown
-  const selectProduct = (llanta: Llanta) => {
-    setProductoSeleccionado(llanta);
-    setSearchTerm(`${llanta.marca} ${llanta.modelo} - ${llanta.medida}`);
-    setShowDropdown(false);
-    setCantidadProducto(1);
-  };
 
   // Add llanta to cart (always uses bodega-1)
   const addProductToCart = () => {
@@ -334,32 +322,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       };
       setCartItems([...cartItems, newItem]);
     }
-    setError('');
-  };
-
-  // Add generic product to cart
-  const addExtraProductToCart = () => {
-    if (!productoNombre.trim()) {
-      setError('Ingresa el nombre del producto');
-      return;
-    }
-    const precio = parseFloat(productoPrecioStr) || 0;
-    if (precio <= 0) {
-      setError('Ingresa un precio válido');
-      return;
-    }
-
-    const newItem: CartItemExtra = {
-      tipo: 'extra',
-      id: `extra-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      nombre: productoNombre.trim(),
-      cantidad: productoCantidad,
-      precioUnitario: precio,
-    };
-    setCartItems([...cartItems, newItem]);
-    setProductoNombre('');
-    setProductoPrecioStr('');
-    setProductoCantidad(1);
     setError('');
   };
 
@@ -459,9 +421,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   // Calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
   const total = subtotal;
-
-  // Check if cart has llantas (requires client name)
-  const hasLlantas = cartItems.some((item) => item.tipo === 'producto');
 
   // Submit sale
   const handleSubmit = async () => {
@@ -736,99 +695,67 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
               {/* Llantas Tab */}
               {activeTab === 'llantas' && (
                 <div className="space-y-4">
-                  {/* Search */}
+                  {/* Search filter */}
                   <div className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        className="input"
-                        style={{ paddingLeft: '2.5rem' }}
-                        placeholder="Buscar por marca, modelo o medida..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                          setSearchTerm(e.target.value);
-                          setShowDropdown(true);
-                          if (!e.target.value.trim()) {
-                            setProductoSeleccionado(null);
-                          }
-                        }}
-                        onFocus={() => {
-                          if (searchTerm.trim()) setShowDropdown(true);
-                        }}
-                        onBlur={() => {
-                          setTimeout(() => setShowDropdown(false), 200);
-                        }}
-                      />
-                    </div>
-
-                    {/* Dropdown Results */}
-                    {showDropdown && filteredProducts.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        {filteredProducts.map((llanta) => {
-                          const totalStock = getTotalStock(llanta);
-                          return (
-                            <button
-                              key={llanta.id}
-                              type="button"
-                              className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center justify-between border-b last:border-b-0"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                selectProduct(llanta);
-                              }}
-                            >
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {llanta.marca} {llanta.modelo}
-                                </p>
-                                <p className="text-xs text-gray-500">{llanta.medida}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="font-medium text-sm text-blue-600">
-                                  {formatCurrency(llanta.precioVenta)}
-                                </p>
-                                <p className="text-xs text-gray-500">{totalStock} disponibles</p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {showDropdown && searchTerm.trim() && filteredProducts.length === 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500">
-                        No se encontraron llantas
-                      </div>
-                    )}
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      className="input"
+                      style={{ paddingLeft: '2.5rem' }}
+                      placeholder="Filtrar por marca, modelo o medida..."
+                      value={searchTerm}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        if (productoSeleccionado) setProductoSeleccionado(null);
+                      }}
+                    />
                   </div>
 
                   {/* Selected Llanta Info */}
                   {productoSeleccionado && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="mb-3">
-                        <h4 className="font-semibold text-blue-900">
-                          {productoSeleccionado.marca} {productoSeleccionado.modelo}
-                        </h4>
-                        <p className="text-sm text-blue-700">{productoSeleccionado.medida}</p>
-                        <p className="text-lg font-bold text-blue-800 mt-1">
-                          {formatCurrency(productoSeleccionado.precioVenta)}
-                        </p>
-                        <p className="text-xs text-blue-600 mt-1">
-                          {getTotalStock(productoSeleccionado)} unidades disponibles
-                        </p>
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-blue-900">
+                            {productoSeleccionado.marca} {productoSeleccionado.modelo}
+                          </h4>
+                          <p className="text-sm text-blue-700">{productoSeleccionado.medida}</p>
+                          <p className="text-lg font-bold text-blue-800 mt-1">
+                            {formatCurrency(productoSeleccionado.precioVenta)}
+                          </p>
+                          <p className="text-xs text-blue-600 mt-1">
+                            {getTotalStock(productoSeleccionado)} unidades disponibles
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-blue-400 hover:text-blue-600 text-xs"
+                          onClick={() => setProductoSeleccionado(null)}
+                        >
+                          ✕
+                        </button>
                       </div>
-
-                      <div className="flex gap-3 items-end">
-                        <div className="w-28">
-                          <label className="label text-blue-800">Cantidad</label>
-                          <input
-                            type="number"
-                            className="input"
-                            min={1}
-                            max={getTotalStock(productoSeleccionado)}
-                            value={cantidadProducto}
-                            onChange={(e) => setCantidadProducto(parseInt(e.target.value) || 1)}
-                          />
+                      <div className="flex gap-3 items-center">
+                        <div className="flex items-center border border-blue-300 rounded-lg overflow-hidden">
+                          <button
+                            type="button"
+                            className="px-3 py-2 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40"
+                            onClick={() => setCantidadProducto((q) => Math.max(1, q - 1))}
+                            disabled={cantidadProducto <= 1}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="px-4 py-2 font-bold text-blue-900 min-w-[2.5rem] text-center">
+                            {cantidadProducto}
+                          </span>
+                          <button
+                            type="button"
+                            className="px-3 py-2 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40"
+                            onClick={() => setCantidadProducto((q) => Math.min(getTotalStock(productoSeleccionado), q + 1))}
+                            disabled={cantidadProducto >= getTotalStock(productoSeleccionado)}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
                         </div>
                         <button
                           type="button"
@@ -836,9 +763,54 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           onClick={addProductToCart}
                         >
                           <Plus className="w-4 h-4" />
-                          Agregar
+                          Agregar al carrito
                         </button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Grid of llantas */}
+                  {filteredProducts.length === 0 ? (
+                    <p className="text-center py-8 text-gray-500 text-sm">
+                      {searchTerm.trim() ? 'No se encontraron llantas' : 'No hay llantas con stock disponible'}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto pr-1">
+                      {filteredProducts.map((llanta) => {
+                        const totalStock = getTotalStock(llanta);
+                        const isSelected = productoSeleccionado?.id === llanta.id;
+                        return (
+                          <button
+                            key={llanta.id}
+                            type="button"
+                            onClick={() => {
+                              setProductoSeleccionado(llanta);
+                              setCantidadProducto(1);
+                            }}
+                            className={`p-3 border-2 rounded-lg transition-all text-left group ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <Package className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-500' : 'text-gray-400 group-hover:text-blue-500'}`} />
+                              <span className="font-medium text-sm line-clamp-1">
+                                {llanta.marca} {llanta.modelo}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 font-mono mb-2">{llanta.medida}</p>
+                            <div className="flex items-center justify-between">
+                              <p className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-blue-600'}`}>
+                                {formatCurrency(llanta.precioVenta)}
+                              </p>
+                              <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">
+                                {totalStock} disp.
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

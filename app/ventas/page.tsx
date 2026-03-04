@@ -1,16 +1,16 @@
-import Link from 'next/link';
-import { PageHeader } from '@/components/layout';
-import { Button, Card, CardBody, Badge } from '@/components/ui';
-import { obtenerVentas } from './actions';
-import { formatCurrency } from '@/lib/utils/formatters';
-import { VentasTable } from './VentasTable';
+import Link from "next/link";
+import { PageHeader } from "@/components/layout";
+import { Button, Card, CardBody, Badge } from "@/components/ui";
+import { obtenerVentas } from "./actions";
+import { formatCurrency } from "@/lib/utils/formatters";
+import { VentasTable } from "./VentasTable";
 
 export default async function VentasPage() {
   const result = await obtenerVentas();
   const ventas = result.data || [];
 
-  const hoy = new Date().toISOString().split('T')[0];
-  const ventasHoy = ventas.filter((v) => v.fechaVenta.split('T')[0] === hoy);
+  const hoy = new Date().toISOString().split("T")[0];
+  const ventasHoy = ventas.filter((v) => v.fechaVenta.split("T")[0] === hoy);
   const totalHoy = ventasHoy.reduce((acc, v) => acc + v.total, 0);
   const totalMes = ventas
     .filter((v) => v.fechaVenta.startsWith(hoy.slice(0, 7)))
@@ -23,7 +23,7 @@ export default async function VentasPage() {
         subtitle="Historial de ventas realizadas"
         actions={
           <Link href="/ventas/nueva">
-            <Button>+ Nueva Venta</Button>
+            <Button>Nueva Venta</Button>
           </Link>
         }
       />

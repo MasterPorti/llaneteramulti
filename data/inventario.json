@@ -30,9 +30,9 @@
       "perfil": 45,
       "rin": 17,
       "createdAt": "2026-01-28T10:00:00.000Z",
-      "updatedAt": "2026-02-05T10:00:00.000Z",
+      "updatedAt": "2026-03-03T01:04:04.100Z",
       "activo": true,
-      "stock": 3
+      "stock": 0
     },
     {
       "id": "llanta-bridg-turanza",
@@ -555,7 +555,7 @@
     }
   ],
   "metadata": {
-    "lastUpdated": "2026-02-24T16:25:17.416Z",
+    "lastUpdated": "2026-03-03T01:04:04.101Z",
     "version": 2
   }
 }

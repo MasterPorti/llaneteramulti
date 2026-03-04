@@ -15,10 +15,10 @@
       "nombre": "Aceite 10W40",
       "descripcion": "Aceite de motor semisintético 1L",
       "precio": 150,
-      "stock": 15,
+      "stock": 14,
       "activo": true,
       "createdAt": "2026-02-24T16:12:17.029Z",
-      "updatedAt": "2026-02-24T16:12:17.029Z"
+      "updatedAt": "2026-03-03T01:04:04.089Z"
     },
     {
       "id": "prod-filtro-aceite",
@@ -82,7 +82,7 @@
     }
   ],
   "metadata": {
-    "lastUpdated": "2026-02-24T16:25:17.404Z",
+    "lastUpdated": "2026-03-03T01:04:04.089Z",
     "version": 1
   }
 }

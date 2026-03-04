@@ -431,8 +431,15 @@ body {
 
 /* Print styles */
 @media print {
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
+
   body {
     background: white;
+    margin: 0;
+    padding: 0;
   }
 
   .no-print {
@@ -444,12 +451,31 @@ body {
   }
 
   .card {
-    border: none;
-    box-shadow: none;
+    border: none !important;
+    box-shadow: none !important;
   }
 
   .table th {
     background: white;
+  }
+
+  /* Ticket: ocupa todo el ancho al imprimir */
+  .ticket-preview-container {
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    display: block !important;
+  }
+
+  .ticket {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  /* El grid colapsa y el ticket ocupa todo */
+  .grid {
+    display: block !important;
   }
 }
 

@@ -1,81 +1,82 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { CONFIG } from '@/lib/config';
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { CONFIG } from "@/lib/config";
 import {
   Home,
   Package,
   Plus,
   ShoppingCart,
-  PlusCircle,
   Wrench,
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
   X,
   ShoppingBag,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+  History,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface MenuItem {
   label: string;
   href: string;
   icon: LucideIcon;
   indent?: boolean;
+  exact?: boolean;
 }
 
 const menuItems: MenuItem[] = [
   {
-    label: 'Inicio',
-    href: '/',
+    label: "Inicio",
+    href: "/",
     icon: Home,
   },
   {
-    label: 'Inventario',
-    href: '/llantas',
-    icon: Package,
-  },
-  {
-    label: '+ Nueva Llanta',
-    href: '/llantas/nuevo',
-    icon: Plus,
-    indent: true,
-  },
-  {
-    label: 'Ventas',
-    href: '/ventas',
+    label: "Venta",
+    href: "/ventas/servicio",
     icon: ShoppingCart,
   },
   {
-    label: 'Servicio',
-    href: '/ventas/servicio',
-    icon: Wrench,
-    indent: true,
+    label: "Historia de ventas",
+    href: "/ventas",
+    icon: History,
+    exact: true,
   },
   {
-    label: 'Venta Llantas',
-    href: '/ventas/llantas',
-    icon: PlusCircle,
-    indent: true,
-  },
-  {
-    label: 'Productos',
-    href: '/productos',
+    label: "Productos",
+    href: "/productos",
     icon: ShoppingBag,
   },
   {
-    label: '+ Nuevo Producto',
-    href: '/productos/nuevo',
+    label: "Nuevo Producto",
+    href: "/productos/nuevo",
     icon: Plus,
     indent: true,
   },
   {
-    label: 'Servicios',
-    href: '/servicios',
+    label: "Servicios",
+    href: "/servicios",
     icon: Wrench,
+  },
+  {
+    label: "Nuevo Servicio",
+    href: "/servicios/nuevo",
+    icon: Plus,
+    indent: true,
+  },
+  {
+    label: "Llantas",
+    href: "/llantas",
+    icon: Package,
+  },
+  {
+    label: "Nueva Llanta",
+    href: "/llantas/nuevo",
+    icon: Plus,
+    indent: true,
   },
 ];
 
@@ -87,8 +88,8 @@ export function Sidebar() {
 
   // Load collapsed state from localStorage after mount
   useEffect(() => {
-    const saved = localStorage.getItem('sidebar-collapsed');
-    if (saved === 'true') {
+    const saved = localStorage.getItem("sidebar-collapsed");
+    if (saved === "true") {
       setCollapsed(true);
     }
     setMounted(true);
@@ -102,12 +103,12 @@ export function Sidebar() {
   // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (mobileOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     }
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     };
   }, [mobileOpen]);
 
@@ -115,17 +116,17 @@ export function Sidebar() {
   const toggleCollapsed = () => {
     const newState = !collapsed;
     setCollapsed(newState);
-    localStorage.setItem('sidebar-collapsed', String(newState));
+    localStorage.setItem("sidebar-collapsed", String(newState));
   };
 
   const renderNavItems = (items: MenuItem[], isAdmin = false) => {
     return items.map((item) => {
       const Icon = item.icon;
-      const hrefPath = item.href.split('?')[0];
+      const hrefPath = item.href.split("?")[0];
       const isActive =
-        hrefPath === '/'
-          ? pathname === '/'
-          : pathname === hrefPath || pathname.startsWith(hrefPath + '/');
+        hrefPath === "/" || item.exact
+          ? pathname === hrefPath
+          : pathname === hrefPath || pathname.startsWith(hrefPath + "/");
 
       return (
         <Link
@@ -134,17 +135,25 @@ export function Sidebar() {
           onClick={() => setMobileOpen(false)}
           className={`
             flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all duration-150
-            ${item.indent ? 'ml-6' : ''}
+            ${item.indent ? "ml-6" : ""}
             ${
               isActive
                 ? isAdmin
-                  ? 'bg-amber-50 text-amber-900 font-medium'
-                  : 'bg-gray-100 text-gray-900 font-medium'
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? "bg-amber-50 text-amber-900 font-medium"
+                  : "bg-gray-100 text-gray-900 font-medium"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             }
           `}
         >
-          <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? (isAdmin ? 'text-amber-600' : 'text-gray-900') : 'text-gray-400'}`} />
+          <Icon
+            className={`w-4.5 h-4.5 shrink-0 ${
+              isActive
+                ? isAdmin
+                  ? "text-amber-600"
+                  : "text-gray-900"
+                : "text-gray-400"
+            }`}
+          />
           <span>{item.label}</span>
         </Link>
       );
@@ -164,7 +173,9 @@ export function Sidebar() {
               className="rounded-lg"
             />
             <div>
-              <h1 className="text-lg font-bold text-gray-800">{CONFIG.nombreNegocio}</h1>
+              <h1 className="text-lg font-bold text-gray-800">
+                {CONFIG.nombreNegocio}
+              </h1>
               <p className="text-xs text-gray-500">Sistema de Inventario</p>
             </div>
           </div>
@@ -233,14 +244,11 @@ export function Sidebar() {
 
       {/* Mobile overlay - hidden on desktop via CSS */}
       {mobileOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setMobileOpen(false)}
-        />
+        <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Mobile sidebar - hidden on desktop via CSS */}
-      <aside className={`sidebar-mobile no-print ${mobileOpen ? 'open' : ''}`}>
+      <aside className={`sidebar-mobile no-print ${mobileOpen ? "open" : ""}`}>
         {sidebarContent}
       </aside>
 
@@ -254,9 +262,7 @@ export function Sidebar() {
           <PanelLeftOpen className="w-5 h-5 text-gray-600" />
         </button>
       ) : (
-        <aside className="sidebar no-print">
-          {sidebarContent}
-        </aside>
+        <aside className="sidebar no-print">{sidebarContent}</aside>
       )}
     </>
   );

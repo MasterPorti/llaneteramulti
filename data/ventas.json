@@ -349,11 +349,122 @@
       "createdAt": "2026-02-24T16:25:17.409Z",
       "updatedAt": "2026-02-24T16:25:17.409Z",
       "cancelada": false
+    },
+    {
+      "id": "1772487387238-ussld1n",
+      "folio": "V-0009",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 1,
+          "precioUnitario": 80,
+          "subtotal": 80
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "extra-material",
+          "servicioNombre": "Extra / Material",
+          "cantidad": 1,
+          "precioUnitario": 50,
+          "subtotal": 50
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-mk8xhh5",
+          "servicioNombre": "Balanceo",
+          "cantidad": 1,
+          "precioUnitario": 60,
+          "subtotal": 60
+        }
+      ],
+      "subtotal": 190,
+      "iva": 0,
+      "total": 190,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-03-02T21:36:27.237Z",
+      "ticketGenerado": true,
+      "facturada": false,
+      "garantia": {
+        "fechaInicio": "2026-03-02",
+        "fechaFin": "2026-03-02",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-03-02T21:36:27.237Z",
+      "updatedAt": "2026-03-02T21:36:27.237Z",
+      "cancelada": false
+    },
+    {
+      "id": "1772499844096-qqxe6fq",
+      "folio": "V-0010",
+      "cliente": {
+        "nombre": "Cliente general"
+      },
+      "items": [
+        {
+          "tipo": "servicio",
+          "servicioId": "1770745106645-x2wg92g",
+          "servicioNombre": "Parche de llanta",
+          "cantidad": 3,
+          "precioUnitario": 80,
+          "subtotal": 240
+        },
+        {
+          "tipo": "servicio",
+          "servicioId": "producto-prod-aceite-10w40",
+          "servicioNombre": "Aceite 10W40",
+          "cantidad": 1,
+          "precioUnitario": 150,
+          "subtotal": 150
+        },
+        {
+          "tipo": "producto",
+          "llantaId": "llanta-mich-ps4",
+          "bodega": "bodega-1",
+          "llantaSnapshot": {
+            "marca": "Michelin",
+            "modelo": "Pilot Sport 4",
+            "medida": "225/45R17"
+          },
+          "cantidad": 3,
+          "precioUnitario": 3600,
+          "subtotal": 10800
+        }
+      ],
+      "subtotal": 11190,
+      "iva": 0,
+      "total": 11190,
+      "metodoPago": "efectivo",
+      "fechaVenta": "2026-03-03T01:04:04.096Z",
+      "ticketGenerado": true,
+      "facturada": true,
+      "garantia": {
+        "fechaInicio": "2026-03-03",
+        "fechaFin": "2026-03-03",
+        "diasGarantia": 0,
+        "condiciones": "Garantía por defectos de fabricación. No cubre daños por mal uso.",
+        "activa": true
+      },
+      "createdAt": "2026-03-03T01:04:04.096Z",
+      "updatedAt": "2026-03-03T01:31:40.464Z",
+      "cancelada": false,
+      "factura": {
+        "uuid": "FAC-1772501500462",
+        "serie": "A",
+        "folio": "789",
+        "fechaTimbrado": "2026-03-03T01:31:40.462Z"
+      }
     }
   ],
   "metadata": {
-    "lastUpdated": "2026-02-24T16:25:17.421Z",
-    "ultimoFolio": 8,
+    "lastUpdated": "2026-03-03T01:31:40.464Z",
+    "ultimoFolio": 10,
     "version": 1
   }
 }
