@@ -17,11 +17,21 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: '#111827',
 };
 
 export const metadata: Metadata = {
   title: 'Llanta Usada - Sistema de Inventario',
   description: 'Sistema de administración de inventario para Llanta Usada',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Llanta Usada',
+  },
+  icons: {
+    apple: '/images/logo.jpeg',
+  },
 };
 
 export default function RootLayout({
@@ -33,6 +43,11 @@ export default function RootLayout({
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <RootWrapper>{children}</RootWrapper>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');`,
+          }}
+        />
       </body>
     </html>
   );

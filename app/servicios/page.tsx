@@ -3,8 +3,27 @@
 import { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/layout';
 import { Button, Card, CardBody, Input } from '@/components/ui';
-import { Wrench, Plus, Pencil, Trash2, Check, X, DollarSign } from 'lucide-react';
+import { Wrench, Plus, Pencil, Trash2, Check, X, DollarSign, ScanBarcode } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/formatters';
+import JsBarcode from 'jsbarcode';
+
+function descargarCodigoBarras(servicio: { nombre: string; codigoBarras: string; id: string }) {
+  const valor = servicio.codigoBarras || servicio.id;
+  const canvas = document.createElement('canvas');
+  JsBarcode(canvas, valor, {
+    format: 'CODE128',
+    displayValue: true,
+    text: `${servicio.nombre} · ${valor}`,
+    fontSize: 12,
+    margin: 10,
+    width: 2,
+    height: 60,
+  });
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = `barcode_${servicio.nombre.replace(/\s+/g, '_')}.png`;
+  a.click();
+}
 import {
   obtenerServicios,
   crearServicio,
@@ -199,7 +218,7 @@ export default function ServiciosPage() {
                       <input
                         type="number"
                         name="precioDefault"
-                        className="input pl-8"
+                        className="input" style={{ paddingLeft: '2rem' }}
                         value={addForm.precioDefault || ''}
                         onChange={(e) =>
                           setAddForm({
@@ -288,7 +307,7 @@ export default function ServiciosPage() {
                           <input
                             type="number"
                             name="precioDefault"
-                            className="input pl-8"
+                            className="input" style={{ paddingLeft: '2rem' }}
                             value={editForm.precioDefault ?? ''}
                             onChange={(e) =>
                               setEditForm({
@@ -336,6 +355,13 @@ export default function ServiciosPage() {
                         </h3>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <button
+                          onClick={() => descargarCodigoBarras(servicio)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Descargar código de barras"
+                        >
+                          <ScanBarcode className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleStartEdit(servicio)}
                           className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"

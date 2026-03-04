@@ -9,8 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@types/jsbarcode": "^3.11.4",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
+    "jsbarcode": "^3.12.3",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.563.0",
