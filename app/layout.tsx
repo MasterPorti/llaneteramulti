@@ -21,13 +21,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Llanta Usada - Sistema de Inventario',
-  description: 'Sistema de administración de inventario para Llanta Usada',
+  title: 'Sistema Punto de Venta',
+  description: 'Sistema Punto de Venta - Llanta Usada',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Llanta Usada',
+    title: 'Sistema PdV',
   },
   icons: {
     apple: '/images/logo.jpeg',

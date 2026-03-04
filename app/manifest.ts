@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Llanta Usada',
-    short_name: 'Llanta Usada',
-    description: 'Sistema de administración de inventario para Llanta Usada',
+    name: 'Sistema Punto de Venta',
+    short_name: 'Sistema PdV',
+    description: 'Sistema Punto de Venta - Llanta Usada',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',
