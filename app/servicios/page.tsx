@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/layout';
 import { Button, Card, CardBody, Input } from '@/components/ui';
+import { DownloadPdfButton } from '@/components/ui/DownloadPdfButton';
 import { Wrench, Plus, Pencil, Trash2, Check, X, DollarSign, ScanBarcode, Printer } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { imprimirCodigosServicios } from '@/lib/utils/print-service-barcodes';
+import { buildServicesReport } from '@/lib/reports/data';
 import JsBarcode from 'jsbarcode';
 
 function descargarCodigoBarras(servicio: { nombre: string; codigoBarras: string; id: string }) {
@@ -38,6 +40,7 @@ export default function ServiciosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [datosConfirmados, setDatosConfirmados] = useState(false);
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -67,6 +70,7 @@ export default function ServiciosPage() {
       if (!active) return;
       if (result.success && result.data) {
         setServicios(result.data);
+        setDatosConfirmados(true);
         setError(null);
       } else {
         setError(result.error || 'Error al cargar servicios');
@@ -83,14 +87,21 @@ export default function ServiciosPage() {
 
   async function cargarServicios() {
     setLoading(true);
-    const result = await obtenerServicios();
-    if (result.success && result.data) {
-      setServicios(result.data);
-      setError(null);
-    } else {
-      setError(result.error || 'Error al cargar servicios');
+    setDatosConfirmados(false);
+    try {
+      const result = await obtenerServicios();
+      if (result.success && result.data) {
+        setServicios(result.data);
+        setDatosConfirmados(true);
+        setError(null);
+      } else {
+        setError(result.error || 'Error al cargar servicios');
+      }
+    } catch {
+      setError('Error al cargar servicios');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // --- Add handlers ---
@@ -106,21 +117,27 @@ export default function ServiciosPage() {
   }
 
   async function handleSaveAdd() {
-    if (!addForm.nombre.trim()) return;
+    if (saving || !addForm.nombre.trim()) return;
     setSaving(true);
-    const result = await crearServicio({
-      nombre: addForm.nombre.trim(),
-      descripcion: addForm.descripcion.trim(),
-      precioDefault: Number(addForm.precioDefault),
-    });
-    if (result.success) {
-      await cargarServicios();
-      setIsAdding(false);
-      setAddForm({ nombre: '', descripcion: '', precioDefault: 0 });
-    } else {
-      setError(result.error || 'Error al crear servicio');
+    setDatosConfirmados(false);
+    try {
+      const result = await crearServicio({
+        nombre: addForm.nombre.trim(),
+        descripcion: addForm.descripcion.trim(),
+        precioDefault: Number(addForm.precioDefault),
+      });
+      if (result.success) {
+        await cargarServicios();
+        setIsAdding(false);
+        setAddForm({ nombre: '', descripcion: '', precioDefault: 0 });
+      } else {
+        setError(result.error || 'Error al crear servicio');
+      }
+    } catch {
+      setError('No se pudo confirmar el guardado. Recarga los servicios.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   // --- Edit handlers ---
@@ -140,34 +157,46 @@ export default function ServiciosPage() {
   }
 
   async function handleSaveEdit() {
-    if (!editingId || !editForm.nombre?.trim()) return;
+    if (saving || !editingId || !editForm.nombre?.trim()) return;
     setSaving(true);
-    const result = await actualizarServicio(editingId, {
-      nombre: editForm.nombre?.trim(),
-      descripcion: editForm.descripcion?.trim(),
-      precioDefault: Number(editForm.precioDefault),
-    });
-    if (result.success) {
-      await cargarServicios();
-      setEditingId(null);
-      setEditForm({});
-    } else {
-      setError(result.error || 'Error al actualizar servicio');
+    setDatosConfirmados(false);
+    try {
+      const result = await actualizarServicio(editingId, {
+        nombre: editForm.nombre?.trim(),
+        descripcion: editForm.descripcion?.trim(),
+        precioDefault: Number(editForm.precioDefault),
+      });
+      if (result.success) {
+        await cargarServicios();
+        setEditingId(null);
+        setEditForm({});
+      } else {
+        setError(result.error || 'Error al actualizar servicio');
+      }
+    } catch {
+      setError('No se pudo confirmar el guardado. Recarga los servicios.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   // --- Delete handler ---
   async function handleDelete(id: string) {
-    if (!confirm('Esta accion eliminara el servicio. Continuar?')) return;
+    if (saving || !confirm('Esta accion eliminara el servicio. Continuar?')) return;
     setSaving(true);
-    const result = await eliminarServicio(id);
-    if (result.success) {
-      await cargarServicios();
-    } else {
-      setError(result.error || 'Error al eliminar servicio');
+    setDatosConfirmados(false);
+    try {
+      const result = await eliminarServicio(id);
+      if (result.success) {
+        await cargarServicios();
+      } else {
+        setError(result.error || 'Error al eliminar servicio');
+      }
+    } catch {
+      setError('No se pudo confirmar la eliminación. Recarga los servicios.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   return (
@@ -181,6 +210,10 @@ export default function ServiciosPage() {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
+            <DownloadPdfButton
+              getReport={() => buildServicesReport(servicios)}
+              disabled={loading || !datosConfirmados || saving || isAdding || !!editingId || !servicios.length}
+            />
             <Button variant="secondary" onClick={() => handlePrint(servicios)} disabled={loading || !servicios.length}>
               <Printer className="w-4 h-4" />
               Imprimir todos
@@ -196,6 +229,11 @@ export default function ServiciosPage() {
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm">
           {error}
+          {!datosConfirmados && (
+            <button type="button" onClick={cargarServicios} disabled={loading || saving} className="ml-3 underline disabled:opacity-50">
+              Recargar servicios
+            </button>
+          )}
           <button
             onClick={() => setError(null)}
             className="ml-2 text-red-500 hover:text-red-700"
@@ -404,14 +442,16 @@ export default function ServiciosPage() {
                         </button>
                         <button
                           onClick={() => handleStartEdit(servicio)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                          disabled={saving}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
                           title="Editar"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(servicio.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          disabled={saving}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                           title="Eliminar"
                         >
                           <Trash2 className="w-4 h-4" />

@@ -5,10 +5,12 @@ import Link from "next/link";
 import { Plus, Search, Package } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Card, CardBody, Badge } from "@/components/ui";
+import { DownloadPdfButton } from "@/components/ui/DownloadPdfButton";
 import { obtenerInventario } from "./actions";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getTotalStock, type Llanta, type BodegaId } from "@/types";
 import { BODEGAS } from "@/lib/config";
+import { buildTiresReport } from "@/lib/reports/data";
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
@@ -24,6 +26,10 @@ export default function InventarioPage() {
       if (!mounted) return;
       if (result.success && result.data) setInventario(result.data);
       else setError(result.error || 'No se pudo cargar el inventario');
+      setLoading(false);
+    }).catch(() => {
+      if (!mounted) return;
+      setError('No se pudo cargar el inventario');
       setLoading(false);
     });
     return () => { mounted = false; };
@@ -66,11 +72,21 @@ export default function InventarioPage() {
         title="Inventario"
         subtitle={`${inventario.length} productos en catálogo`}
         actions={
-          <Link href="/llantas/nuevo">
-            <button className="btn btn-primary flex items-center gap-2">
-              <Plus size={16} /> Nueva Llanta
-            </button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <DownloadPdfButton
+              getReport={() => buildTiresReport(inventarioFiltrado, {
+                busqueda,
+                estado: estadoFiltro === 'activos' ? 'Activos' : estadoFiltro === 'inactivos' ? 'Inactivos' : 'Todos',
+                bodega: BODEGAS.find((bodega) => bodega.id === bodegaFiltro)?.nombre || 'Todas las bodegas',
+              })}
+              disabled={loading || !!error || !inventarioFiltrado.length}
+            />
+            <Link href="/llantas/nuevo">
+              <button className="btn btn-primary flex items-center gap-2">
+                <Plus size={16} /> Nueva Llanta
+              </button>
+            </Link>
+          </div>
         }
       />
 

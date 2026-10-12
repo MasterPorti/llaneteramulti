@@ -4,24 +4,35 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Search, ShoppingBag, Minus } from 'lucide-react';
 import { PageHeader } from '@/components/layout';
-import { Card, CardBody, Badge, Button } from '@/components/ui';
+import { Card, CardBody, Badge } from '@/components/ui';
+import { DownloadPdfButton } from '@/components/ui/DownloadPdfButton';
 import { obtenerProductos, ajustarStock } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { buildProductsReport } from '@/lib/reports/data';
 import type { Producto } from '@/types';
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [ajustando, setAjustando] = useState<Record<string, number>>({});
 
   const loadProductos = useCallback(async () => {
     setLoading(true);
-    const result = await obtenerProductos();
-    if (result.success && result.data) {
-      setProductos(result.data);
+    try {
+      const result = await obtenerProductos();
+      if (result.success && result.data) {
+        setProductos(result.data);
+        setError(null);
+      } else {
+        setError(result.error || 'No se pudieron cargar los productos');
+      }
+    } catch {
+      setError('No se pudieron cargar los productos');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -38,12 +49,25 @@ export default function ProductosPage() {
   });
 
   const handleAjustar = async (id: string, delta: number, stockActual: number) => {
-    if (delta < 0 && stockActual + delta < 0) return;
-    const result = await ajustarStock(id, delta);
-    if (result.success && result.data) {
-      setProductos((prev) =>
-        prev.map((p) => (p.id === id ? result.data! : p))
-      );
+    if (ajustando[id] || (delta < 0 && stockActual + delta < 0)) return;
+    setAjustando((prev) => ({ ...prev, [id]: 1 }));
+    try {
+      const result = await ajustarStock(id, delta);
+      if (result.success && result.data) {
+        setProductos((prev) =>
+          prev.map((p) => (p.id === id ? result.data! : p))
+        );
+      } else {
+        setError(result.error || 'No se pudo confirmar el ajuste de stock. Recarga los productos.');
+      }
+    } catch {
+      setError('No se pudo confirmar el ajuste de stock. Recarga los productos.');
+    } finally {
+      setAjustando((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -65,13 +89,28 @@ export default function ProductosPage() {
         title="Productos"
         subtitle={`${productos.length} productos en catálogo`}
         actions={
-          <Link href="/productos/nuevo">
-            <button className="btn btn-primary flex items-center gap-2">
-              <Plus size={16} /> Nuevo Producto
-            </button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <DownloadPdfButton
+              getReport={() => buildProductsReport(productosFiltrados, { busqueda })}
+              disabled={loading || !!error || !productosFiltrados.length || Object.keys(ajustando).length > 0}
+            />
+            <Link href="/productos/nuevo">
+              <button className="btn btn-primary flex items-center gap-2">
+                <Plus size={16} /> Nuevo Producto
+              </button>
+            </Link>
+          </div>
         }
       />
+
+      {error && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-3 text-red-600">
+          <p>{error}</p>
+          <button type="button" className="btn btn-secondary" onClick={loadProductos} disabled={Object.keys(ajustando).length > 0}>
+            Recargar productos
+          </button>
+        </div>
+      )}
 
       <div className="mb-6">
         <div className="relative">
@@ -146,7 +185,7 @@ export default function ProductosPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleAjustar(producto.id, -1, producto.stock)}
-                          disabled={producto.stock === 0}
+                          disabled={producto.stock === 0 || !!ajustando[producto.id]}
                           className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 disabled:opacity-30"
                           title="Quitar 1"
                         >
@@ -155,7 +194,8 @@ export default function ProductosPage() {
                         <span className="w-8 text-center text-sm font-medium">{producto.stock}</span>
                         <button
                           onClick={() => handleAjustar(producto.id, 1, producto.stock)}
-                          className="p-1 rounded hover:bg-green-100 text-gray-400 hover:text-green-600"
+                          disabled={!!ajustando[producto.id]}
+                          className="p-1 rounded hover:bg-green-100 text-gray-400 hover:text-green-600 disabled:opacity-30"
                           title="Agregar 1"
                         >
                           <Plus size={14} />

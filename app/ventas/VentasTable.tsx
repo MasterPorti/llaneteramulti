@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Table } from '@/components/ui';
 import type { Venta } from '@/types';
 import { formatCurrency, formatDateTime, getMexicoDateString } from '@/lib/utils/formatters';
-import { Download } from 'lucide-react';
+import { DownloadPdfButton } from '@/components/ui/DownloadPdfButton';
+import { buildSalesReport } from '@/lib/reports/data';
 
 interface VentasTableProps {
   ventas: Venta[];
@@ -30,55 +31,6 @@ function getRango(periodo: Periodo, fechaInicio: string, fechaFin: string) {
   }
   if (periodo === 'todos') return { desde: '', hasta: '' };
   return { desde: fechaInicio, hasta: fechaFin };
-}
-
-function descargarCSV(ventas: Venta[], desde: string, hasta: string) {
-  const rows: string[][] = [
-    ['Folio', 'Fecha', 'Cliente', 'Concepto', 'Subtotal', 'IVA', 'Total', 'Método de Pago'],
-  ];
-
-  for (const v of ventas.filter((v) => !v.cancelada)) {
-    const concepto = v.items
-      .map((item) =>
-        item.tipo === 'producto'
-          ? `${item.llantaSnapshot.marca} ${item.llantaSnapshot.modelo} ${item.llantaSnapshot.medida} x${item.cantidad}`
-          : `${item.servicioNombre} x${item.cantidad}`
-      )
-      .join(' | ');
-
-    rows.push([
-      v.folio,
-      getMexicoDateString(new Date(v.fechaVenta)),
-      v.cliente.nombre,
-      concepto,
-      v.subtotal.toFixed(2),
-      v.iva.toFixed(2),
-      v.total.toFixed(2),
-      v.metodoPago,
-    ]);
-  }
-
-  // Totales al final
-  const vigentes = ventas.filter((v) => !v.cancelada);
-  const totalGeneral = vigentes.reduce((acc, v) => acc + Math.round(v.total * 100), 0) / 100;
-  const subtotalGeneral = vigentes.reduce((acc, v) => acc + Math.round(v.subtotal * 100), 0) / 100;
-  const ivaGeneral = vigentes.reduce((acc, v) => acc + Math.round(v.iva * 100), 0) / 100;
-  rows.push(Array(8).fill(''));
-  rows.push(['', '', '', 'TOTALES', subtotalGeneral.toFixed(2), ivaGeneral.toFixed(2), totalGeneral.toFixed(2), '']);
-
-  // CSV estándar: comas entre columnas, comillas escapadas y filas CRLF.
-  // El BOM conserva los acentos cuando Excel abre el archivo directamente.
-  const csv = rows
-    .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(','))
-    .join('\r\n') + '\r\n';
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = desde || hasta ? `ventas_${desde}_${hasta}.csv` : 'ventas_todas.csv';
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 export function VentasTable({ ventas }: VentasTableProps) {
@@ -214,14 +166,10 @@ export function VentasTable({ ventas }: VentasTableProps) {
             <span className="font-medium text-gray-800">{ventasFiltradas.length}</span> ventas ·{' '}
             <span className="font-medium text-gray-800">{formatCurrency(totalFiltrado)}</span>
           </span>
-          <button
-            onClick={() => descargarCSV(ventasFiltradas, desde, hasta)}
-            disabled={ventasFiltradas.length === 0}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Descargar CSV
-          </button>
+          <DownloadPdfButton
+            getReport={() => buildSalesReport(ventasFiltradas, { desde, hasta })}
+            disabled={ventasFiltradas.length === 0 || Boolean(desde && hasta && desde > hasta)}
+          />
         </div>
       </div>
 
