@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui';
 import { crearLlanta } from '../actions';
 import { SISTEMA_BODEGAS } from '@/lib/config-sistema';
 import type { BodegaId } from '@/types';
+import { getMexicoDateString } from '@/lib/utils/formatters';
 
 export default function NuevaLlantaPage() {
   const router = useRouter();
@@ -21,8 +22,12 @@ export default function NuevaLlantaPage() {
     medida: '',
     precioCompra: '',
     precioVenta: '',
-    proveedor: '',
-    fechaRecepcion: new Date().toISOString().split('T')[0],
+    precioMayorista: '',
+    tipoUsada: '',
+    vida: '',
+    publicada: '',
+    proveedor: 'COMERCIALIZADORA DE NEW TIRES',
+    fechaRecepcion: getMexicoDateString(),
     bodega: 'bodega-1' as BodegaId,
     cantidad: '1',
   });
@@ -38,6 +43,10 @@ export default function NuevaLlantaPage() {
       medida: formData.medida,
       precioCompra: parseFloat(formData.precioCompra) || 0,
       precioVenta: parseFloat(formData.precioVenta) || 0,
+      precioMayorista: parseFloat(formData.precioMayorista) || 0,
+      tipoUsada: formData.tipoUsada,
+      vida: formData.vida,
+      publicada: formData.publicada,
       proveedor: formData.proveedor,
       fechaRecepcion: formData.fechaRecepcion,
       bodega: formData.bodega,
@@ -182,6 +191,23 @@ export default function NuevaLlantaPage() {
                 />
               </div>
 
+              <div>
+                <label className="label">Precio Mayorista</label>
+                <input type="number" name="precioMayorista" className="input w-full" value={formData.precioMayorista}
+                  onChange={handleChange} min="0" step="0.01" />
+              </div>
+              <div>
+                <label className="label">Tipo de llanta usada</label>
+                <input type="text" name="tipoUsada" className="input w-full" value={formData.tipoUsada} onChange={handleChange} />
+              </div>
+              <div>
+                <label className="label">Vida</label>
+                <input type="text" name="vida" className="input w-full" value={formData.vida} onChange={handleChange} />
+              </div>
+              <div>
+                <label className="label">Publicada</label>
+                <input type="text" name="publicada" className="input w-full" value={formData.publicada} onChange={handleChange} />
+              </div>
               {/* Fecha Recepción */}
               <div>
                 <label className="label">Fecha de Recepción</label>

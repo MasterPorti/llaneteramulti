@@ -4,40 +4,37 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Table } from '@/components/ui';
 import type { Venta } from '@/types';
-import { formatCurrency, formatDateTime, formatDate } from '@/lib/utils/formatters';
+import { formatCurrency, formatDateTime, getMexicoDateString } from '@/lib/utils/formatters';
 import { Download } from 'lucide-react';
 
 interface VentasTableProps {
   ventas: Venta[];
 }
 
-type Periodo = 'hoy' | 'semana' | 'mes' | 'personalizado';
+type Periodo = 'hoy' | 'semana' | 'mes' | 'todos' | 'personalizado';
 
 function getRango(periodo: Periodo, fechaInicio: string, fechaFin: string) {
-  const hoy = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const toISO = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const hoyStr = getMexicoDateString();
+  const hoy = new Date(`${hoyStr}T12:00:00Z`);
 
   if (periodo === 'hoy') {
-    const s = toISO(hoy);
-    return { desde: s, hasta: s };
+    return { desde: hoyStr, hasta: hoyStr };
   }
   if (periodo === 'semana') {
     const lunes = new Date(hoy);
-    lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
-    return { desde: toISO(lunes), hasta: toISO(hoy) };
+    lunes.setUTCDate(hoy.getUTCDate() - ((hoy.getUTCDay() + 6) % 7));
+    return { desde: lunes.toISOString().split('T')[0], hasta: hoyStr };
   }
   if (periodo === 'mes') {
-    const desde = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-01`;
-    return { desde, hasta: toISO(hoy) };
+    return { desde: `${hoyStr.slice(0, 7)}-01`, hasta: hoyStr };
   }
+  if (periodo === 'todos') return { desde: '', hasta: '' };
   return { desde: fechaInicio, hasta: fechaFin };
 }
 
 function descargarCSV(ventas: Venta[], desde: string, hasta: string) {
   const rows: string[][] = [
-    ['Folio', 'Fecha', 'Cliente', 'Concepto', 'Subtotal', 'IVA (16%)', 'Total', 'Método de Pago'],
+    ['Folio', 'Fecha', 'Cliente', 'Concepto', 'Subtotal', 'IVA', 'Total', 'Método de Pago'],
   ];
 
   for (const v of ventas.filter((v) => !v.cancelada)) {
@@ -49,37 +46,37 @@ function descargarCSV(ventas: Venta[], desde: string, hasta: string) {
       )
       .join(' | ');
 
-    const subtotal = v.total / 1.16;
-    const iva = v.total - subtotal;
-
     rows.push([
       v.folio,
-      formatDate(v.fechaVenta),
+      getMexicoDateString(new Date(v.fechaVenta)),
       v.cliente.nombre,
       concepto,
-      subtotal.toFixed(2),
-      iva.toFixed(2),
+      v.subtotal.toFixed(2),
+      v.iva.toFixed(2),
       v.total.toFixed(2),
       v.metodoPago,
     ]);
   }
 
   // Totales al final
-  const totalGeneral = ventas.filter((v) => !v.cancelada).reduce((acc, v) => acc + v.total, 0);
-  const subtotalGeneral = totalGeneral / 1.16;
-  const ivaGeneral = totalGeneral - subtotalGeneral;
-  rows.push([]);
+  const vigentes = ventas.filter((v) => !v.cancelada);
+  const totalGeneral = vigentes.reduce((acc, v) => acc + Math.round(v.total * 100), 0) / 100;
+  const subtotalGeneral = vigentes.reduce((acc, v) => acc + Math.round(v.subtotal * 100), 0) / 100;
+  const ivaGeneral = vigentes.reduce((acc, v) => acc + Math.round(v.iva * 100), 0) / 100;
+  rows.push(Array(8).fill(''));
   rows.push(['', '', '', 'TOTALES', subtotalGeneral.toFixed(2), ivaGeneral.toFixed(2), totalGeneral.toFixed(2), '']);
 
+  // CSV estándar: comas entre columnas, comillas escapadas y filas CRLF.
+  // El BOM conserva los acentos cuando Excel abre el archivo directamente.
   const csv = rows
-    .map((row) => row.map((cell) => `"${cell}"`).join(';'))
-    .join('\n');
+    .map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(','))
+    .join('\r\n') + '\r\n';
 
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `ventas_${desde}_${hasta}.csv`;
+  a.download = desde || hasta ? `ventas_${desde}_${hasta}.csv` : 'ventas_todas.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -87,10 +84,8 @@ function descargarCSV(ventas: Venta[], desde: string, hasta: string) {
 export function VentasTable({ ventas }: VentasTableProps) {
   const router = useRouter();
 
-  const hoy = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const hoyStr = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
-  const mesStr = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-01`;
+  const hoyStr = getMexicoDateString();
+  const mesStr = `${hoyStr.slice(0, 7)}-01`;
 
   const [periodo, setPeriodo] = useState<Periodo>('mes');
   const [fechaInicio, setFechaInicio] = useState(mesStr);
@@ -100,21 +95,24 @@ export function VentasTable({ ventas }: VentasTableProps) {
 
   const ventasFiltradas = useMemo(() => {
     return ventas.filter((v) => {
-      const fecha = v.fechaVenta.split('T')[0];
-      return fecha >= desde && fecha <= hasta;
+      const fecha = getMexicoDateString(new Date(v.fechaVenta));
+      return (!desde || fecha >= desde) && (!hasta || fecha <= hasta);
     });
   }, [ventas, desde, hasta]);
 
   const totalFiltrado = ventasFiltradas
     .filter((v) => !v.cancelada)
-    .reduce((acc, v) => acc + v.total, 0);
+    .reduce((acc, v) => acc + Math.round(v.total * 100), 0) / 100;
 
   const columns = [
     {
       key: 'folio',
       header: 'Folio',
       render: (item: Venta) => (
-        <span className="font-mono font-medium">{item.folio}</span>
+        <span className="font-mono font-medium">
+          {item.folio}
+          {item.cancelada && <span className="ml-2 font-sans text-xs text-red-600">Cancelada</span>}
+        </span>
       ),
     },
     {
@@ -126,6 +124,16 @@ export function VentasTable({ ventas }: VentasTableProps) {
       key: 'items',
       header: 'Productos',
       render: (item: Venta) => <span>{item.items.length} producto(s)</span>,
+    },
+    {
+      key: 'subtotal',
+      header: 'Subtotal',
+      render: (item: Venta) => formatCurrency(item.subtotal),
+    },
+    {
+      key: 'iva',
+      header: 'IVA',
+      render: (item: Venta) => formatCurrency(item.iva),
     },
     {
       key: 'total',
@@ -158,7 +166,7 @@ export function VentasTable({ ventas }: VentasTableProps) {
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 p-4 border-b border-gray-100">
         <div className="flex gap-1">
-          {(['hoy', 'semana', 'mes'] as const).map((p) => (
+          {(['hoy', 'semana', 'mes', 'todos'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriodo(p)}
@@ -168,7 +176,7 @@ export function VentasTable({ ventas }: VentasTableProps) {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              {p === 'hoy' ? 'Hoy' : p === 'semana' ? 'Esta semana' : 'Este mes'}
+              {p === 'hoy' ? 'Hoy' : p === 'semana' ? 'Esta semana' : p === 'mes' ? 'Este mes' : 'Todos'}
             </button>
           ))}
           <button

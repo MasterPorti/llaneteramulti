@@ -34,6 +34,8 @@ export default function GarantiasPage() {
     const result = await obtenerGarantias();
     if (result.success && result.data) {
       setGarantiasActivas(result.data);
+    } else {
+      setError(result.error || 'No se pudieron cargar las garantías');
     }
     setLoadingList(false);
   };
@@ -203,7 +205,7 @@ export default function GarantiasPage() {
                   <p className="text-lg font-bold">
                     Total: {formatCurrency(resultado.venta.total)}
                   </p>
-                  <Link href={`/ventas/${resultado.venta.id}`}>
+                  <Link href={`/inventario/ventas/${resultado.venta.id}`}>
                     <button className="btn btn-secondary flex items-center gap-2">
                       <Eye className="w-4 h-4" />
                       Ver Venta

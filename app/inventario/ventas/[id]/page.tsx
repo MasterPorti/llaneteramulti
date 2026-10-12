@@ -5,7 +5,6 @@ import {
   ShoppingCart,
   User,
   Phone,
-  Calendar,
   Shield,
   CreditCard,
   Package,
@@ -17,6 +16,9 @@ import { CancelarVentaForm } from './CancelarVentaForm';
 import { ImprimirGarantiaBtn } from './ImprimirGarantiaBtn';
 import { obtenerVentaSistema, cancelarVentaSistema } from '@/lib/data/sistema-ventas';
 import { formatCurrency, formatDateShort, formatDateTime } from '@/lib/utils/formatters';
+import { descripcionTipoPartida } from '@/lib/utils/venta-item';
+import type { VentaItemServicio } from '@/types';
+import { SISTEMA_BODEGAS } from '@/lib/config-sistema';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -34,17 +36,19 @@ export default async function VentaDetallePage({ params }: PageProps) {
     notFound();
   }
 
-  const garantiaExpirada = new Date(venta.garantia.fechaFin) < new Date();
-  const diasRestantes = Math.ceil(
+  const fechasGarantiaRegistradas = Boolean(venta.garantia.fechaInicio && venta.garantia.fechaFin);
+  const garantiaExpirada = fechasGarantiaRegistradas && new Date(venta.garantia.fechaFin) < new Date();
+  const diasRestantes = fechasGarantiaRegistradas ? Math.ceil(
     (new Date(venta.garantia.fechaFin).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-  );
+  ) : 0;
 
   async function handleCancelar(formData: FormData) {
     'use server';
     const motivo = formData.get('motivo') as string;
     if (!motivo) return;
 
-    await cancelarVentaSistema(id, motivo);
+    const result = await cancelarVentaSistema(id, motivo);
+    if (!result.success) throw new Error(result.error || 'No se pudo cancelar la venta.');
     revalidatePath('/inventario/ventas');
     revalidatePath('/inventario/historial');
     revalidatePath('/inventario');
@@ -70,7 +74,7 @@ export default async function VentaDetallePage({ params }: PageProps) {
           <ArrowLeft className="w-4 h-4" />
           Volver a ventas
         </Link>
-        {!venta.cancelada && (
+        {!venta.cancelada && venta.garantia.activa && fechasGarantiaRegistradas && venta.garantia.id && (
           <ImprimirGarantiaBtn ventaId={venta.id} garantiaId={venta.garantia.id} />
         )}
       </div>
@@ -103,10 +107,10 @@ export default async function VentaDetallePage({ params }: PageProps) {
             <table className="table w-full">
               <thead>
                 <tr>
-                  <th>Producto</th>
+                  <th>Concepto</th>
                   <th className="text-center">Cantidad</th>
                   <th className="text-right">Precio Unit.</th>
-                  <th className="text-right">Subtotal</th>
+                  <th className="text-right">Importe</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,13 +123,18 @@ export default async function VentaDetallePage({ params }: PageProps) {
                         </div>
                         <div>
                           <p className="font-medium">
-                            {item.llantaSnapshot.marca} {item.llantaSnapshot.modelo}
+                            {item.tipo === 'servicio' ? item.servicioNombre : `${item.llantaSnapshot.marca} ${item.llantaSnapshot.modelo}`}
                           </p>
                           <p className="text-sm text-[var(--text-muted)]">
-                            {item.llantaSnapshot.medida}
+                            {item.tipo === 'servicio' ? descripcionTipoPartida(item as VentaItemServicio) : item.llantaSnapshot.medida}
                           </p>
                           <p className="text-xs font-mono text-[var(--accent)]">
-                            {item.llantaSnapshot.codigoAuxiliar}
+                            {item.tipo !== 'servicio' && item.llantaSnapshot.codigoAuxiliar}
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)]">
+                            {SISTEMA_BODEGAS.find((bodega) => bodega.id === item.bodega)?.nombre || item.bodega}
+                            {item.costoUnitario !== undefined && ` · Costo unitario: ${formatCurrency(item.costoUnitario)}`}
+                            {item.costoSubtotal !== undefined && ` · Costo total: ${formatCurrency(item.costoSubtotal)}`}
                           </p>
                         </div>
                       </div>
@@ -137,6 +146,14 @@ export default async function VentaDetallePage({ params }: PageProps) {
                 ))}
               </tbody>
               <tfoot>
+                <tr>
+                  <td colSpan={3} className="text-right">Subtotal</td>
+                  <td className="text-right">{formatCurrency(venta.subtotal)}</td>
+                </tr>
+                <tr>
+                  <td colSpan={3} className="text-right">{venta.ivaPolitica === 'incluido_16' ? 'IVA (16% incluido)' : 'IVA registrado'}</td>
+                  <td className="text-right">{formatCurrency(venta.iva)}</td>
+                </tr>
                 <tr className="border-t-2 border-[var(--border-color)]">
                   <td colSpan={3} className="text-right font-bold">Total</td>
                   <td className="text-right text-xl font-bold text-green-400">
@@ -159,18 +176,20 @@ export default async function VentaDetallePage({ params }: PageProps) {
               </h2>
             </CardHeader>
             <CardBody>
-              <Link
+              {venta.garantia.id && <Link
                 href={`/inventario/garantias/${venta.garantia.id}`}
                 className="block text-center mb-4"
               >
                 <p className="garantia-id text-2xl">{venta.garantia.id}</p>
-              </Link>
+              </Link>}
 
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[var(--text-muted)]">Estado</span>
                   {venta.cancelada ? (
                     <Badge variant="danger">Cancelada</Badge>
+                  ) : !venta.garantia.activa ? (
+                    <Badge variant="warning">Inactiva</Badge>
                   ) : garantiaExpirada ? (
                     <Badge variant="danger">Expirada</Badge>
                   ) : (
@@ -179,13 +198,13 @@ export default async function VentaDetallePage({ params }: PageProps) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[var(--text-muted)]">Inicio</span>
-                  <span>{formatDateShort(venta.garantia.fechaInicio)}</span>
+                  <span>{venta.garantia.fechaInicio ? formatDateShort(venta.garantia.fechaInicio) : 'No registrada'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[var(--text-muted)]">Vencimiento</span>
-                  <span>{formatDateShort(venta.garantia.fechaFin)}</span>
+                  <span>{venta.garantia.fechaFin ? formatDateShort(venta.garantia.fechaFin) : 'No registrado'}</span>
                 </div>
-                {!garantiaExpirada && venta.garantia.activa && (
+                {fechasGarantiaRegistradas && !garantiaExpirada && venta.garantia.activa && !venta.cancelada && (
                   <div className="flex justify-between">
                     <span className="text-[var(--text-muted)]">Días restantes</span>
                     <span className={`font-bold ${diasRestantes <= 7 ? 'text-red-400' : diasRestantes <= 30 ? 'text-yellow-400' : 'text-green-400'}`}>
@@ -250,11 +269,25 @@ export default async function VentaDetallePage({ params }: PageProps) {
           </Card>
 
           {/* Cancelar Venta */}
-          {!venta.cancelada && (
+          {!venta.cancelada && !venta.soloLecturaMigrada && (
             <CancelarVentaForm action={handleCancelar} />
           )}
         </div>
       </div>
+      {venta.datosOriginalesJson && (
+        <Card className="mt-6">
+          <CardBody>
+            <div className="flex items-center justify-between gap-4">
+              <p className="font-semibold">Registro completo de la venta</p>
+              <a className="btn btn-secondary" href={`/api/sistema/ventas/${encodeURIComponent(id)}/original`} download>Descargar JSON</a>
+            </div>
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm">Consultar todos los campos originales</summary>
+              <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-all text-xs">{venta.datosOriginalesJson}</pre>
+            </details>
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge, PrintButton } from '@/components/ui';
 import { obtenerVenta } from '../actions';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
-import { CONFIG } from '@/lib/config';
+import { descripcionTipoPartida } from '@/lib/utils/venta-item';
 import { TicketPrint } from './TicketPrint';
 import { CancelarVentaButton } from './CancelarVentaButton';
 import { FacturarVentaButton } from './FacturarVentaButton';
@@ -34,10 +34,10 @@ export default async function VentaDetallePage({ params }: Props) {
           ]}
           actions={
             <div className="flex gap-2">
-              {!venta.cancelada && !venta.facturada && (
+              {!venta.cancelada && !venta.facturada && !venta.soloLecturaMigrada && (
                 <FacturarVentaButton id={id} />
               )}
-              {!venta.cancelada && (
+              {!venta.cancelada && !venta.soloLecturaMigrada && (
                 <CancelarVentaButton id={id} />
               )}
               <PrintButton />
@@ -74,7 +74,7 @@ export default async function VentaDetallePage({ params }: Props) {
                         ) : (
                           <>
                             <p className="font-medium">{item.servicioNombre}</p>
-                            <p className="text-sm text-gray-500">Servicio</p>
+                            <p className="text-sm text-gray-500">{descripcionTipoPartida(item)}</p>
                           </>
                         )}
                       </div>
@@ -85,9 +85,19 @@ export default async function VentaDetallePage({ params }: Props) {
                     </div>
                   </div>
                 ))}
-                <div className="p-4 bg-gray-50 flex justify-between items-center">
-                  <span className="font-bold text-lg">Total:</span>
-                  <span className="font-bold text-lg">{formatCurrency(venta.total)}</span>
+                <div className="p-4 bg-gray-50 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(venta.subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{venta.ivaPolitica === 'incluido_16' ? 'IVA (16% incluido):' : 'IVA registrado:'}</span>
+                    <span>{formatCurrency(venta.iva)}</span>
+                  </div>
+                  <div className="flex justify-between items-center font-bold text-lg">
+                    <span>Total:</span>
+                    <span>{formatCurrency(venta.total)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -100,7 +110,7 @@ export default async function VentaDetallePage({ params }: Props) {
                       <th>Detalle</th>
                       <th>Cantidad</th>
                       <th>Precio Unit.</th>
-                      <th>Subtotal</th>
+                      <th>Importe</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -116,7 +126,7 @@ export default async function VentaDetallePage({ params }: Props) {
                         ) : (
                           <>
                             <td className="font-medium">{item.servicioNombre}</td>
-                            <td className="text-sm text-gray-500">Servicio</td>
+                            <td className="text-sm text-gray-500">{descripcionTipoPartida(item)}</td>
                           </>
                         )}
                         <td>{item.cantidad}</td>
@@ -126,6 +136,14 @@ export default async function VentaDetallePage({ params }: Props) {
                     ))}
                   </tbody>
                   <tfoot>
+                    <tr>
+                      <td colSpan={4} className="text-right">Subtotal:</td>
+                      <td>{formatCurrency(venta.subtotal)}</td>
+                    </tr>
+                    <tr>
+                      <td colSpan={4} className="text-right">{venta.ivaPolitica === 'incluido_16' ? 'IVA (16% incluido):' : 'IVA registrado:'}</td>
+                      <td>{formatCurrency(venta.iva)}</td>
+                    </tr>
                     <tr>
                       <td colSpan={4} className="text-right font-bold text-lg">Total:</td>
                       <td className="font-bold text-lg">{formatCurrency(venta.total)}</td>

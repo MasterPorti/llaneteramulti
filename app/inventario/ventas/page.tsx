@@ -12,6 +12,7 @@ import type { SistemaVenta } from '@/types/sistema';
 export default function VentasPage() {
   const [ventas, setVentas] = useState<SistemaVenta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadVentas();
@@ -22,6 +23,8 @@ export default function VentasPage() {
     const result = await obtenerVentas();
     if (result.success && result.data) {
       setVentas(result.data);
+    } else {
+      setError(result.error || 'No se pudieron cargar las ventas');
     }
     setLoading(false);
   };
@@ -53,6 +56,7 @@ export default function VentasPage() {
         }
       />
 
+      {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
       {ventas.length === 0 ? (
         <Card>
           <CardBody>
@@ -76,7 +80,7 @@ export default function VentasPage() {
               {ventas.map((venta) => (
                 <Link
                   key={venta.id}
-                  href={`/ventas/${venta.id}`}
+                  href={`/inventario/ventas/${venta.id}`}
                   className="block p-4 hover:bg-[var(--bg-hover)] transition-colors"
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -110,7 +114,7 @@ export default function VentasPage() {
                     <th>Folio</th>
                     <th>Cliente</th>
                     <th>Garantía</th>
-                    <th>Items</th>
+                    <th>Partidas</th>
                     <th>Total</th>
                     <th>Fecha</th>
                     <th>Estado</th>
@@ -132,7 +136,7 @@ export default function VentasPage() {
                           {venta.garantia.id}
                         </span>
                       </td>
-                      <td>{venta.items.length} producto(s)</td>
+                      <td>{venta.items.length} partidas</td>
                       <td className="font-bold">{formatCurrency(venta.total)}</td>
                       <td>{formatDateShort(venta.fechaVenta)}</td>
                       <td>
@@ -141,7 +145,7 @@ export default function VentasPage() {
                         </Badge>
                       </td>
                       <td>
-                        <Link href={`/ventas/${venta.id}`}>
+                        <Link href={`/inventario/ventas/${venta.id}`}>
                           <button className="btn btn-ghost p-2">
                             <Eye className="w-4 h-4" />
                           </button>

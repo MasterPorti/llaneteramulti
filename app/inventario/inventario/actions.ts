@@ -14,9 +14,9 @@ import {
   buscarLlantasSistema,
 } from '@/lib/data/sistema-inventario';
 
-export async function obtenerInventario(): Promise<SistemaActionResponse<Llanta[]>> {
+export async function obtenerInventario(filtros?: { incluirInactivos?: boolean }): Promise<SistemaActionResponse<Llanta[]>> {
   try {
-    const data = await obtenerInventarioSistema();
+    const data = await obtenerInventarioSistema(filtros);
     return { success: true, data };
   } catch (error) {
     return { success: false, error: (error as Error).message };

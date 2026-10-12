@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout";
-import { Card, CardBody, CardHeader, Button } from "@/components/ui";
+import { Card, CardBody, CardHeader, Button, Badge } from "@/components/ui";
 import { obtenerLlanta } from "../actions";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { getTotalStock } from "@/types";
 import { EliminarLlantaButton } from "./EliminarLlantaButton";
+import { AjustarStockForm } from "./AjustarStockForm";
+import { BODEGAS } from "@/lib/config";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -13,7 +15,7 @@ interface Props {
 
 export default async function LlantaDetallePage({ params }: Props) {
   const { id } = await params;
-  const result = await obtenerLlanta(id);
+  const result = await obtenerLlanta(id, true);
 
   if (!result.success || !result.data) {
     notFound();
@@ -28,16 +30,18 @@ export default async function LlantaDetallePage({ params }: Props) {
         title={`${llanta.marca} ${llanta.modelo}`}
         subtitle={llanta.medida}
         breadcrumbs={[
-          { label: "Inventario", href: "/inventario" },
+          { label: "Inventario", href: "/llantas" },
           { label: `${llanta.marca} ${llanta.modelo}` },
         ]}
         actions={
           <div className="flex gap-2">
-            {totalStock > 0 && (
+            {llanta.activo && <Link href={`/llantas/${id}/editar`}><Button variant="secondary">Editar</Button></Link>}
+            {llanta.activo && totalStock > 0 && (
               <Link href={`/ventas/llantas?llantaId=${id}`}>
                 <Button>Vender</Button>
               </Link>
             )}
+            {!llanta.activo && <Badge variant="warning">Inactiva · Historial</Badge>}
           </div>
         }
       />
@@ -73,9 +77,12 @@ export default async function LlantaDetallePage({ params }: Props) {
                 <div>
                   <dt className="text-sm text-gray-500">Fecha Recepción</dt>
                   <dd className="font-medium">
-                    {formatDate(llanta.fechaRecepcion)}
+                    {llanta.fechaRecepcion ? formatDate(llanta.fechaRecepcion) : 'No registrada'}
                   </dd>
                 </div>
+                <div><dt className="text-sm text-gray-500">Tipo de llanta usada</dt><dd className="font-medium">{llanta.tipoUsada || 'No registrado'}</dd></div>
+                <div><dt className="text-sm text-gray-500">Vida</dt><dd className="font-medium">{llanta.vida || 'No registrada'}</dd></div>
+                <div><dt className="text-sm text-gray-500">Publicada</dt><dd className="font-medium">{llanta.publicada || 'No registrado'}</dd></div>
               </dl>
             </CardBody>
           </Card>
@@ -90,6 +97,10 @@ export default async function LlantaDetallePage({ params }: Props) {
                   {formatCurrency(llanta.precioVenta)}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">Precio de venta</p>
+                <dl className="mt-4 space-y-2 text-sm text-left">
+                  <div className="flex justify-between"><dt>Precio de compra</dt><dd>{formatCurrency(llanta.precioCompra)}</dd></div>
+                  <div className="flex justify-between"><dt>Precio mayorista</dt><dd>{formatCurrency(llanta.precioMayorista ?? 0)}</dd></div>
+                </dl>
               </div>
             </CardBody>
           </Card>
@@ -98,22 +109,18 @@ export default async function LlantaDetallePage({ params }: Props) {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <h2 className="font-semibold">Stock Total</h2>
+              <h2 className="font-semibold">Stock</h2>
             </CardHeader>
             <CardBody>
-              <div className="text-center">
+              <div className="text-center mb-4">
                 <p className="text-4xl font-bold">{totalStock}</p>
-                <p className="text-sm text-gray-500">unidades disponibles</p>
+                <p className="text-sm text-gray-500">{llanta.activo ? 'unidades disponibles' : 'unidades registradas · inactiva'}</p>
               </div>
-              <p className="text-xs text-gray-400 text-center mt-4">
-                Para ajustar stock o ver distribución por bodega, ve a{" "}
-                <Link
-                  href="/admin/bodegas"
-                  className="text-blue-500 hover:underline"
-                >
-                  Admin → Bodegas
-                </Link>
-              </p>
+              <dl className="mb-4 space-y-2 text-sm">
+                {BODEGAS.map((bodega) => <div key={bodega.id} className="flex justify-between gap-3"><dt>{bodega.nombre}</dt><dd>{llanta.stockPorBodega[bodega.id] || 0}</dd></div>)}
+              </dl>
+              {llanta.activo && <AjustarStockForm id={llanta.id} stockPorBodega={llanta.stockPorBodega} />}
+              {llanta.activo && <div className="mt-4"><EliminarLlantaButton id={id} /></div>}
             </CardBody>
           </Card>
 

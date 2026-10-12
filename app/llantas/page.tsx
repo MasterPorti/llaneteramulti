@@ -1,40 +1,44 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, Search, Package } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Card, CardBody, Badge } from "@/components/ui";
 import { obtenerInventario } from "./actions";
 import { formatCurrency } from "@/lib/utils/formatters";
-import { getTotalStock, type Llanta } from "@/types";
+import { getTotalStock, type Llanta, type BodegaId } from "@/types";
+import { BODEGAS } from "@/lib/config";
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
-
-  const loadInventario = useCallback(async () => {
-    setLoading(true);
-    const result = await obtenerInventario();
-    if (result.success && result.data) {
-      setInventario(result.data);
-    }
-    setLoading(false);
-  }, []);
+  const [estadoFiltro, setEstadoFiltro] = useState("activos");
+  const [error, setError] = useState("");
+  const [bodegaFiltro, setBodegaFiltro] = useState<BodegaId | "">("");
 
   useEffect(() => {
-    loadInventario();
-  }, [loadInventario]);
-
+    let mounted = true;
+    obtenerInventario({ incluirInactivos: true }).then((result) => {
+      if (!mounted) return;
+      if (result.success && result.data) setInventario(result.data);
+      else setError(result.error || 'No se pudo cargar el inventario');
+      setLoading(false);
+    });
+    return () => { mounted = false; };
+  }, []);
   const inventarioFiltrado = inventario.filter((l) => {
+    if (bodegaFiltro && !(l.stockPorBodega[bodegaFiltro] > 0)) return false;
+    if (estadoFiltro === "activos" && !l.activo) return false;
+    if (estadoFiltro === "inactivos" && l.activo) return false;
     if (busqueda.trim()) {
       const term = busqueda.toLowerCase();
       return (
         l.marca.toLowerCase().includes(term) ||
         l.modelo.toLowerCase().includes(term) ||
         l.medida.toLowerCase().includes(term) ||
-        l.proveedor.toLowerCase().includes(term) ||
+        (l.proveedor || "").toLowerCase().includes(term) ||
         `${l.marca} ${l.modelo}`.toLowerCase().includes(term)
       );
     }
@@ -84,6 +88,19 @@ export default function InventarioPage() {
         </div>
       </div>
 
+      {error && <p role="alert" className="mb-4 text-red-600">{error}</p>}
+      <div className="mb-4 flex items-center gap-3">
+        <label htmlFor="estado-inventario" className="text-sm text-gray-500">Estado:</label>
+        <select id="estado-inventario" className="select" value={estadoFiltro} onChange={(event) => setEstadoFiltro(event.target.value)}>
+          <option value="activos">Activos</option>
+          <option value="inactivos">Inactivos (historial)</option>
+          <option value="todos">Todos los registros</option>
+        </select>
+        <select aria-label="Bodega" className="select" value={bodegaFiltro} onChange={(event) => setBodegaFiltro(event.target.value as BodegaId | "")}>
+          <option value="">Todas las bodegas</option>
+          {BODEGAS.map((bodega) => <option key={bodega.id} value={bodega.id}>{bodega.nombre}</option>)}
+        </select>
+      </div>
       {inventarioFiltrado.length === 0 ? (
         <Card>
           <CardBody>
@@ -121,6 +138,7 @@ export default function InventarioPage() {
                         >
                           <p className="font-medium">
                             {llanta.marca} {llanta.modelo}
+                            {!llanta.activo && <span className="ml-2 text-xs text-amber-700">Inactiva</span>}
                           </p>
                           <p className="text-xs text-gray-500">
                             R{llanta.rin} · {llanta.ancho}/{llanta.perfil}

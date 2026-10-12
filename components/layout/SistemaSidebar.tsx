@@ -37,6 +37,7 @@ const menuItems: MenuItem[] = [
   { label: 'Nueva Venta', href: '/inventario/ventas/nueva', icon: Plus, indent: true },
   { label: 'Garantías', href: '/inventario/garantias', icon: Shield },
   { label: 'Historial', href: '/inventario/historial', icon: History },
+  { label: 'Movimientos', href: '/inventario/movimientos', icon: ArrowRightLeft },
 ];
 
 export function SistemaSidebar() {
@@ -82,9 +83,9 @@ export function SistemaSidebar() {
         {!collapsed && (
           <div className="flex-1 min-w-0">
             <h1 className="font-bold text-[var(--text-primary)] truncate">
-              {SISTEMA_CONFIG.nombreNegocio}
+              LlanteraMulti
             </h1>
-            <p className="text-xs text-[var(--text-muted)]">Gestión de Inventario</p>
+            <p className="text-xs text-[var(--text-muted)]">Comercializadora de New Tires</p>
           </div>
         )}
       </div>
@@ -123,7 +124,7 @@ export function SistemaSidebar() {
       <div className="p-4 border-t border-[var(--border-color)]">
         {!collapsed && (
           <p className="text-xs text-[var(--text-muted)] text-center">
-            Sistema Inventario v1.0
+            LlanteraMulti · New Tires
           </p>
         )}
       </div>

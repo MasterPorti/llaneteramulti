@@ -470,7 +470,24 @@ body {
   .ticket {
     width: 100% !important;
     max-width: 100% !important;
+    padding-top: 0 !important;
+    padding-bottom: 3mm !important;
+  }
+
+  body > * {
     padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .ticket-header {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  .ticket-header > div:first-child {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
   }
 
   /* El grid colapsa y el ticket ocupa todo */
@@ -482,10 +499,13 @@ body {
 /* Ticket print - 80mm thermal */
 .ticket {
   width: 80mm;
-  padding: 3mm;
+  padding: 3mm 10mm 3mm 15mm;
   font-family: 'Courier New', monospace;
   font-size: 10pt;
+  font-weight: 900;
   line-height: 1.3;
+  -webkit-text-stroke: 0.4px #000;
+  color: #000;
 }
 
 .ticket-header {

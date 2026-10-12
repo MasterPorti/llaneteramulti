@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Table, Badge } from '@/components/ui';
 import { getTotalStock, type Llanta } from '@/types';
-import { formatCurrency, formatDateShort } from '@/lib/utils/formatters';
+import { formatCurrency } from '@/lib/utils/formatters';
 import { BODEGAS } from '@/lib/config';
 
 interface InventarioTableProps {

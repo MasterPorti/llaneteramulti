@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { obtenerVentaSistema } from '@/lib/data/sistema-ventas';
 import { formatDate, formatCurrency } from '@/lib/utils/formatters';
+import { descripcionTipoPartida } from '@/lib/utils/venta-item';
+import type { VentaItemServicio } from '@/types';
 import { AutoPrint } from './AutoPrint';
 
 export const dynamic = 'force-dynamic';
@@ -13,9 +15,9 @@ export default async function GarantiaPrintPage({ params }: PageProps) {
   const { id } = await params;
   const venta = await obtenerVentaSistema(id);
 
-  if (!venta) notFound();
+  if (!venta || !venta.garantia.id || !venta.garantia.fechaInicio || !venta.garantia.fechaFin) notFound();
 
-  const { garantia, cliente, items, total, folio } = venta;
+  const { garantia, cliente, items, subtotal, iva, total, folio } = venta;
 
   // Split conditions into sections for structured rendering
   const condLines = garantia.condiciones.split('\n');
@@ -76,7 +78,7 @@ export default async function GarantiaPrintPage({ params }: PageProps) {
             marginBottom: '28px',
           }}>
             <p style={{ margin: '0', fontSize: '11px', letterSpacing: '4px', color: '#aaa', textTransform: 'uppercase' }}>
-              Documento oficial
+              {venta.soloLecturaMigrada ? 'Copia de garantía histórica' : 'Documento oficial'}
             </p>
             <h2 style={{ margin: '4px 0 0', fontSize: '20px', fontWeight: '700', letterSpacing: '3px', textTransform: 'uppercase' }}>
               Póliza de Garantía
@@ -164,7 +166,7 @@ export default async function GarantiaPrintPage({ params }: PageProps) {
                   Cód. Auxiliar
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', fontSize: '11px' }}>
-                  Marca / Modelo
+                  Concepto
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', fontSize: '11px' }}>
                   Medida
@@ -176,7 +178,7 @@ export default async function GarantiaPrintPage({ params }: PageProps) {
                   P. Unit.
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '600', fontSize: '11px' }}>
-                  Subtotal
+                  Importe
                 </th>
               </tr>
             </thead>
@@ -190,13 +192,20 @@ export default async function GarantiaPrintPage({ params }: PageProps) {
                   }}
                 >
                   <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: '700', fontSize: '13px', color: '#333' }}>
-                    {item.llantaSnapshot.codigoAuxiliar}
+                    {item.tipo === 'servicio' ? '—' : item.llantaSnapshot.codigoAuxiliar}
                   </td>
                   <td style={{ padding: '10px 12px', color: '#222' }}>
-                    {item.llantaSnapshot.marca} {item.llantaSnapshot.modelo}
+                    {item.tipo === 'servicio' ? (
+                      <>
+                        {item.servicioNombre}
+                        <div style={{ fontSize: '11px', color: '#666' }}>
+                          {descripcionTipoPartida(item as VentaItemServicio)}
+                        </div>
+                      </>
+                    ) : `${item.llantaSnapshot.marca} ${item.llantaSnapshot.modelo}`}
                   </td>
                   <td style={{ padding: '10px 12px', color: '#555' }}>
-                    {item.llantaSnapshot.medida}
+                    {item.tipo === 'servicio' ? '—' : item.llantaSnapshot.medida}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '700' }}>
                     {item.cantidad}
@@ -211,6 +220,14 @@ export default async function GarantiaPrintPage({ params }: PageProps) {
               ))}
             </tbody>
             <tfoot>
+              <tr>
+                <td colSpan={5} style={{ padding: '8px 12px', textAlign: 'right' }}>Subtotal</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right' }}>{formatCurrency(subtotal)}</td>
+              </tr>
+              <tr>
+                <td colSpan={5} style={{ padding: '8px 12px', textAlign: 'right' }}>{venta.ivaPolitica === 'incluido_16' ? 'IVA (16% incluido)' : 'IVA registrado'}</td>
+                <td style={{ padding: '8px 12px', textAlign: 'right' }}>{formatCurrency(iva)}</td>
+              </tr>
               <tr style={{ background: '#111', color: '#fff' }}>
                 <td colSpan={5} style={{ padding: '12px', textAlign: 'right', fontWeight: '600', fontSize: '13px', letterSpacing: '1px' }}>
                   TOTAL

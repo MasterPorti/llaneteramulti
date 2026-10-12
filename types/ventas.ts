@@ -2,25 +2,33 @@ import type { BodegaId } from './inventario';
 
 export interface VentaItemProducto {
   tipo: 'producto';
+  tipoOriginal?: 'producto' | 'servicio' | 'catalogo' | 'extra';
   llantaId: string;
-  bodega: BodegaId;
+  bodega: BodegaId | '';
   llantaSnapshot: {
     marca: string;
     modelo: string;
     medida: string;
+    codigoAuxiliar?: string;
   };
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+  costoUnitario?: number;
+  costoSubtotal?: number;
 }
 
 export interface VentaItemServicio {
   tipo: 'servicio';
+  tipoOriginal?: 'producto' | 'servicio' | 'catalogo' | 'extra';
   servicioId: string;
   servicioNombre: string;
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+  productoId?: string;
+  costoUnitario?: number;
+  costoSubtotal?: number;
 }
 
 export type VentaItem = VentaItemProducto | VentaItemServicio;
@@ -31,6 +39,7 @@ export interface VentaCliente {
 }
 
 export interface Garantia {
+  id?: string;
   fechaInicio: string;
   fechaFin: string;
   diasGarantia: number;
@@ -48,6 +57,10 @@ export interface FacturaInfo {
 }
 
 export interface Venta {
+  ivaPolitica?: 'incluido_16' | null;
+  soloLecturaMigrada?: boolean;
+  datosOriginales?: Record<string, unknown>;
+  datosOriginalesJson?: string;
   id: string;
   folio: string;
   cliente: VentaCliente;
@@ -82,6 +95,7 @@ export interface VentaInput {
   diasGarantia?: number;
   condicionesGarantia?: string;
   generarFactura: boolean;
+  sinGarantia?: boolean;
 }
 
 export type EstadoGarantia = 'activa' | 'por_vencer' | 'vencida';

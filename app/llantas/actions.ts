@@ -14,9 +14,9 @@ import {
 } from '@/lib/data/inventario';
 import type { Llanta, LlantaInput, LlantaSuggestion, BodegaId, ActionResponse } from '@/types';
 
-export async function obtenerInventario(): Promise<ActionResponse<Llanta[]>> {
+export async function obtenerInventario(filtros?: { incluirInactivos?: boolean }): Promise<ActionResponse<Llanta[]>> {
   try {
-    const inventario = await getInventario();
+    const inventario = await getInventario(filtros);
     return { success: true, data: inventario };
   } catch (error) {
     return {
@@ -26,9 +26,9 @@ export async function obtenerInventario(): Promise<ActionResponse<Llanta[]>> {
   }
 }
 
-export async function obtenerLlanta(id: string): Promise<ActionResponse<Llanta>> {
+export async function obtenerLlanta(id: string, incluirInactivos = false): Promise<ActionResponse<Llanta>> {
   try {
-    const llanta = await getLlanta(id);
+    const llanta = await getLlanta(id, incluirInactivos);
     if (!llanta) {
       return { success: false, error: 'Llanta no encontrada' };
     }
@@ -149,7 +149,7 @@ export async function moverStockAction(
     const llanta = await moveStock(llantaId, bodegaOrigen, bodegaDestino, cantidad);
     if (!llanta) return { success: false, error: 'Producto no encontrado' };
     revalidatePath('/llantas');
-    revalidatePath('/admin/bodegas');
+    revalidatePath('/llantas/inventario');
     return { success: true, data: llanta };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Error al mover stock' };

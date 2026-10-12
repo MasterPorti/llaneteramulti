@@ -34,7 +34,7 @@ export async function obtenerVentas(filtros?: {
   hasta?: string;
 }): Promise<SistemaActionResponse<SistemaVenta[]>> {
   try {
-    const data = await obtenerVentasSistema(filtros);
+    const data = await obtenerVentasSistema({ ...filtros, incluirCanceladas: true });
     return { success: true, data };
   } catch (error) {
     return { success: false, error: (error as Error).message };

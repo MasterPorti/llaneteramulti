@@ -1,4 +1,4 @@
-export type BodegaId = 'bodega-1' | 'bodega-2' | 'bodega-3' | 'bodega-4' | 'bodega-5';
+export type BodegaId = 'bodega-1' | 'bodega-2' | 'bodega-3' | 'bodega-4' | 'bodega-5' | 'bodega-6' | 'bodega-7' | 'bodega-8';
 
 export interface Llanta {
   id: string;
@@ -10,6 +10,10 @@ export interface Llanta {
   rin: number;
   precioCompra: number;
   precioVenta: number;
+  precioMayorista?: number;
+  tipoUsada?: string;
+  vida?: string;
+  publicada?: string;
   stockPorBodega: Record<BodegaId, number>;
   proveedor: string;
   fechaRecepcion: string;
@@ -24,6 +28,11 @@ export interface LlantaInput {
   medida: string;
   precioCompra: number;
   precioVenta: number;
+  precioMayorista?: number;
+  tipoUsada?: string;
+  vida?: string;
+  publicada?: string;
+  stockPorBodega?: Partial<Record<BodegaId, number>>;
   cantidad: number;
   bodega: BodegaId;
   proveedor: string;
@@ -43,8 +52,11 @@ export interface LlantaSuggestion {
 export interface MovimientoBodega {
   id: string;
   llantaId: string;
-  bodegaOrigen: BodegaId;
-  bodegaDestino: BodegaId;
+  bodegaOrigen: BodegaId | '';
+  bodegaDestino: BodegaId | '';
+  tipo?: string;
+  motivo?: string;
+  ventaId?: string;
   cantidad: number;
   fecha: string;
 }

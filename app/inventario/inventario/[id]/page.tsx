@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Package, Edit, Trash2, ArrowLeft, Warehouse, Calendar, DollarSign, Tag, Ruler } from 'lucide-react';
+import { Package, Edit, ArrowLeft, Warehouse, Calendar, DollarSign, Tag, Ruler } from 'lucide-react';
+import { DesactivarLlantaButton } from './DesactivarLlantaButton';
+import { AjustarStockForm } from './AjustarStockForm';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
 import { obtenerLlantaSistema, eliminarLlantaSistema } from '@/lib/data/sistema-inventario';
@@ -18,7 +20,7 @@ interface PageProps {
 
 export default async function LlantaDetallePage({ params }: PageProps) {
   const { id } = await params;
-  const llanta = await obtenerLlantaSistema(id);
+  const llanta = await obtenerLlantaSistema(id, true);
 
   if (!llanta) {
     notFound();
@@ -53,6 +55,9 @@ export default async function LlantaDetallePage({ params }: PageProps) {
           <ArrowLeft className="w-4 h-4" />
           Volver al inventario
         </Link>
+        <Link href={`/inventario/movimientos?llantaId=${encodeURIComponent(id)}`} className="ml-4 text-sm hover:underline">
+          Ver movimientos
+        </Link>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -64,7 +69,7 @@ export default async function LlantaDetallePage({ params }: PageProps) {
                 <Package className="w-5 h-5" />
                 Información del Producto
               </h2>
-              <div className="flex gap-2">
+              {llanta.activo ? <div className="flex gap-2">
                 <Link href={`/inventario/inventario/${id}/editar`}>
                   <button className="btn btn-secondary flex items-center gap-2">
                     <Edit className="w-4 h-4" />
@@ -72,20 +77,9 @@ export default async function LlantaDetallePage({ params }: PageProps) {
                   </button>
                 </Link>
                 <form action={handleEliminar}>
-                  <button
-                    type="submit"
-                    className="btn btn-danger flex items-center gap-2"
-                    onClick={(e) => {
-                      if (!confirm('¿Estás seguro de eliminar este producto?')) {
-                        e.preventDefault();
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Eliminar
-                  </button>
+                  <DesactivarLlantaButton />
                 </form>
-              </div>
+              </div> : <Badge variant="warning">Inactivo · Historial</Badge>}
             </div>
           </CardHeader>
           <CardBody>
@@ -124,6 +118,18 @@ export default async function LlantaDetallePage({ params }: PageProps) {
                 <p className="text-sm text-[var(--text-muted)] mb-1">Proveedor</p>
                 <p className="font-medium">{llanta.proveedor || 'No especificado'}</p>
               </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)] mb-1">Tipo de llanta usada</p>
+                <p className="font-medium">{llanta.tipoUsada || 'No especificado'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)] mb-1">Vida</p>
+                <p className="font-medium">{llanta.vida || 'No especificada'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-[var(--text-muted)] mb-1">Publicada</p>
+                <p className="font-medium">{llanta.publicada || 'No especificado'}</p>
+              </div>
             </div>
 
             <div className="border-t border-[var(--border-color)] mt-6 pt-6">
@@ -141,11 +147,15 @@ export default async function LlantaDetallePage({ params }: PageProps) {
                   <p className="font-bold text-lg text-green-400">{formatCurrency(llanta.precioVenta)}</p>
                 </div>
                 <div>
+                  <p className="text-sm text-[var(--text-muted)] mb-1">Precio Mayorista</p>
+                  <p className="font-bold text-lg">{formatCurrency(llanta.precioMayorista ?? 0)}</p>
+                </div>
+                <div>
                   <p className="text-sm text-[var(--text-muted)] mb-1">Margen</p>
                   <p className="font-bold text-lg">
                     {formatCurrency(llanta.precioVenta - llanta.precioCompra)}
                     <span className="text-sm text-[var(--text-muted)] ml-1">
-                      ({Math.round(((llanta.precioVenta - llanta.precioCompra) / llanta.precioCompra) * 100)}%)
+                      ({llanta.precioCompra > 0 ? `${Math.round(((llanta.precioVenta - llanta.precioCompra) / llanta.precioCompra) * 100)}%` : 'Sin costo registrado'})
                     </span>
                   </p>
                 </div>
@@ -182,7 +192,7 @@ export default async function LlantaDetallePage({ params }: PageProps) {
             </CardHeader>
             <CardBody className="text-center py-6">
               <p className="text-5xl font-bold mb-2">{totalStock}</p>
-              <p className="text-[var(--text-muted)]">unidades disponibles</p>
+              <p className="text-[var(--text-muted)]">{llanta.activo ? 'unidades disponibles' : 'unidades registradas · producto inactivo'}</p>
               {totalStock === 0 && (
                 <Badge variant="danger" className="mt-4">Sin Stock</Badge>
               )}
@@ -196,12 +206,12 @@ export default async function LlantaDetallePage({ params }: PageProps) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">Stock por Bodega</h2>
-                <Link
+                {llanta.activo && <Link
                   href="/inventario/bodegas/mover"
                   className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                 >
                   Mover stock
-                </Link>
+                </Link>}
               </div>
             </CardHeader>
             <CardBody className="p-0">
@@ -228,6 +238,11 @@ export default async function LlantaDetallePage({ params }: PageProps) {
               </div>
             </CardBody>
           </Card>
+
+          {llanta.activo && <Card>
+            <CardHeader><h2 className="font-semibold">Ajustar existencias</h2></CardHeader>
+            <CardBody><AjustarStockForm id={id} stockPorBodega={llanta.stockPorBodega} /></CardBody>
+          </Card>}
 
           {/* Valor en Inventario */}
           <Card>

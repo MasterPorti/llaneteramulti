@@ -1,10 +1,6 @@
-const CACHE = 'llanta-usada-v1';
+const CACHE = 'llanta-usada-postgresql-v2';
 
 const PRECACHE = [
-  '/',
-  '/ventas',
-  '/inventario',
-  '/servicios',
   '/images/logo.jpeg',
 ];
 
@@ -18,7 +14,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k.startsWith('llanta-usada-') && k !== CACHE).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -30,8 +26,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Ignorar peticiones a la API / server actions
-  if (url.pathname.startsWith('/api') || event.request.headers.get('next-action')) return;
+  // Los datos operativos siempre provienen del servidor PostgreSQL. No mostrar
+  // páginas antiguas del almacén JSON ni guardar clientes/ventas como fallback.
+  if (url.origin !== self.location.origin || !url.pathname.startsWith('/images/') || event.request.headers.get('next-action')) return;
 
   event.respondWith(
     fetch(event.request)

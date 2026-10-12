@@ -12,6 +12,7 @@ import type { SistemaVenta } from '@/types/sistema';
 export default function HistorialPage() {
   const [ventas, setVentas] = useState<SistemaVenta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -28,6 +29,7 @@ export default function HistorialPage() {
 
   const loadHistorial = async (desde?: string, hasta?: string) => {
     setLoading(true);
+    setError('');
     const result = await obtenerResumen({
       desde: desde || undefined,
       hasta: hasta || undefined,
@@ -40,6 +42,8 @@ export default function HistorialPage() {
         totalIngresos: result.data.totalIngresos,
         totalUnidades: result.data.totalUnidades,
       });
+    } else {
+      setError(result.error || 'No se pudo cargar el historial');
     }
     setLoading(false);
   };
@@ -73,6 +77,7 @@ export default function HistorialPage() {
         subtitle={`${totales.totalVentas} ventas registradas`}
       />
 
+      {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card>
@@ -179,7 +184,7 @@ export default function HistorialPage() {
                 {ventas.map((venta) => (
                   <Link
                     key={venta.id}
-                    href={`/ventas/${venta.id}`}
+                    href={`/inventario/ventas/${venta.id}`}
                     className="block p-4 hover:bg-[var(--bg-hover)] transition-colors"
                   >
                     <div className="flex justify-between items-start mb-2">
@@ -244,7 +249,7 @@ export default function HistorialPage() {
                           </Badge>
                         </td>
                         <td>
-                          <Link href={`/ventas/${venta.id}`}>
+                          <Link href={`/inventario/ventas/${venta.id}`}>
                             <button className="btn btn-ghost p-2">
                               <Eye className="w-4 h-4" />
                             </button>

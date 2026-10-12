@@ -1,22 +1,40 @@
-import type { BodegaId } from '@/types';
+import type { BodegaId } from "@/types";
 
 // Bodegas del Sistema Inventario
-export const SISTEMA_BODEGAS: Array<{ id: BodegaId; nombre: string; ubicacion: string }> = [
-  { id: 'bodega-1', nombre: 'Local', ubicacion: 'Local' },
-  { id: 'bodega-2', nombre: 'Escaleras', ubicacion: 'Escaleras' },
-  { id: 'bodega-3', nombre: 'Benito', ubicacion: 'Benito' },
-  { id: 'bodega-4', nombre: 'Hacienda 1', ubicacion: 'Hacienda 1' },
-  { id: 'bodega-5', nombre: 'Coacalco', ubicacion: 'Coacalco' },
+export const SISTEMA_BODEGAS: Array<{
+  id: BodegaId;
+  nombre: string;
+  ubicacion: string;
+  tipo: "nueva" | "usada";
+}> = [
+  { id: "bodega-1", nombre: "Local", ubicacion: "Local", tipo: "nueva" },
+  { id: "bodega-2", nombre: "Escaleras", ubicacion: "Escaleras", tipo: "nueva" },
+  { id: "bodega-3", nombre: "Benitos Usadas", ubicacion: "Benito", tipo: "usada" },
+  { id: "bodega-4", nombre: "Hacienda ", ubicacion: "Hacienda ", tipo: "nueva" },
+  { id: "bodega-5", nombre: "Coacalco Usadas", ubicacion: "Coacalco", tipo: "usada" },
+  { id: "bodega-6", nombre: "Hacienda 2", ubicacion: "Hacienda 2", tipo: "nueva" },
+  { id: "bodega-7", nombre: "Claudia Usadas Hacienda", ubicacion: "Hacienda", tipo: "usada" },
+  { id: "bodega-8", nombre: "Jose Manuel Teyahualco", ubicacion: "Teyahualco", tipo: "usada" },
 ];
+
+// Helpers
+export const BODEGAS_USADAS = SISTEMA_BODEGAS.filter((b) => b.tipo === "usada");
+export const BODEGAS_NUEVAS = SISTEMA_BODEGAS.filter((b) => b.tipo === "nueva");
+export const BODEGAS_USADAS_IDS: BodegaId[] = BODEGAS_USADAS.map((b) => b.id);
+export const BODEGAS_NUEVAS_IDS: BodegaId[] = BODEGAS_NUEVAS.map((b) => b.id);
+
+export function llantaTieneStockUsado(stockPorBodega: Record<string, number>): boolean {
+  return BODEGAS_USADAS_IDS.some((id) => (stockPorBodega[id] || 0) > 0);
+}
 
 // Configuración general del Sistema Inventario
 export const SISTEMA_CONFIG = {
-  nombreNegocio: 'Sistema Inventario',
-  logo: '/images/logo.jpeg',
+  nombreNegocio: "Sistema Inventario",
+  logo: "/images/logo.jpeg",
 
   // Formato de folios
-  formatoFolio: 'SI-',
-  formatoGarantia: 'GAR-',
+  formatoFolio: "SI-",
+  formatoGarantia: "GAR-",
 
   // Garantía predeterminada
   garantiaDiasPredeterminado: 180,
@@ -39,9 +57,9 @@ LA GARANTÍA NO ES VÁLIDA PARA:
 
   // Métodos de pago disponibles
   metodosPago: [
-    { id: 'efectivo', nombre: 'Efectivo' },
-    { id: 'tarjeta', nombre: 'Tarjeta' },
-    { id: 'transferencia', nombre: 'Transferencia' },
+    { id: "efectivo", nombre: "Efectivo" },
+    { id: "tarjeta", nombre: "Tarjeta" },
+    { id: "transferencia", nombre: "Transferencia" },
   ] as const,
 } as const;
 
@@ -49,34 +67,40 @@ LA GARANTÍA NO ES VÁLIDA PARA:
 export function generarGarantiaId(ultimoId: number): string {
   const year = new Date().getFullYear();
   const nextId = ultimoId + 1;
-  return `GAR-${year}-${nextId.toString().padStart(4, '0')}`;
+  return `GAR-${year}-${nextId.toString().padStart(4, "0")}`;
 }
 
 // Genera folio de venta: SI-NNNN
 export function generarFolioSistema(ultimoFolio: number): string {
   const nextFolio = ultimoFolio + 1;
-  return `${SISTEMA_CONFIG.formatoFolio}${nextFolio.toString().padStart(4, '0')}`;
+  return `${SISTEMA_CONFIG.formatoFolio}${nextFolio
+    .toString()
+    .padStart(4, "0")}`;
 }
 
 // Genera código auxiliar a partir de la medida
 export function generarCodigoAuxiliar(medida: string): string {
-  const cleaned = medida.trim().toUpperCase();
+  // En medidas capturadas manualmente es común escribir O en lugar de 0.
+  const cleaned = medida.trim().toUpperCase().replace(/O/g, "0");
 
   // Formato "205/55R16"
-  const match1 = cleaned.match(/^(\d+)\/(\d+)R(\d+)$/i);
+  const match1 = cleaned.match(/^(\d+)\/(\d+)R(\d+(?:\.\d+)?)$/i);
   if (match1) {
     return `${match1[1]} ${match1[2]} ${match1[3]}`;
   }
 
-  // Formato "10.00R20" o "10R20"
-  const match2 = cleaned.match(/^(\d+)(?:\.(\d+))?R(\d+)$/i);
+  // Formato "10.00R20" o "10R20" o "750R16"
+  const match2 = cleaned.match(/^(\d+)(?:\.(\d+))?R(\d+(?:\.\d+)?)$/i);
   if (match2) {
     const part1 = match2[1];
-    const part2 = match2[2] || '00';
+    const part2 = match2[2];
     const part3 = match2[3];
-    return `${part1} ${part2} ${part3}`;
+    return part2 ? `${part1} ${part2} ${part3}` : `${part1} ${part3}`;
   }
 
   // Fallback
-  return cleaned.replace(/[\/\.\-R]/gi, ' ').replace(/\s+/g, ' ').trim();
+  return cleaned
+    .replace(/[\/\.\-R]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }

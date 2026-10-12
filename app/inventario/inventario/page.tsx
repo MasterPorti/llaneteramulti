@@ -15,23 +15,25 @@ export default function InventarioPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [bodegaFiltro, setBodegaFiltro] = useState<BodegaId | ''>('');
+  const [estadoFiltro, setEstadoFiltro] = useState('activos');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    loadInventario();
+    let mounted = true;
+    obtenerInventario({ incluirInactivos: true }).then((result) => {
+      if (!mounted) return;
+      if (result.success && result.data) setInventario(result.data);
+      else setError(result.error || 'No se pudo cargar el inventario');
+      setLoading(false);
+    });
+    return () => { mounted = false; };
   }, []);
-
-  const loadInventario = async () => {
-    setLoading(true);
-    const result = await obtenerInventario();
-    if (result.success && result.data) {
-      setInventario(result.data);
-    }
-    setLoading(false);
-  };
 
   // Filtrar inventario
   const inventarioFiltrado = inventario
     .filter((llanta) => {
+      if (estadoFiltro === 'activos' && !llanta.activo) return false;
+      if (estadoFiltro === 'inactivos' && llanta.activo) return false;
       if (bodegaFiltro && (llanta.stockPorBodega[bodegaFiltro] || 0) === 0) {
         return false;
       }
@@ -42,6 +44,7 @@ export default function InventarioPage() {
           llanta.marca.toLowerCase().includes(term) ||
           llanta.modelo.toLowerCase().includes(term) ||
           llanta.medida.toLowerCase().includes(term) ||
+          (llanta.proveedor || '').toLowerCase().includes(term) ||
           codigoAux.includes(term) ||
           `${llanta.marca} ${llanta.modelo}`.toLowerCase().includes(term)
         );
@@ -84,6 +87,7 @@ export default function InventarioPage() {
         }
       />
 
+      {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
       {/* Filtros */}
       <div className="mb-6 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
@@ -92,12 +96,17 @@ export default function InventarioPage() {
             type="text"
             className="input w-full"
             style={{ paddingLeft: '2.5rem' }}
-            placeholder="Buscar por marca, modelo, medida o código auxiliar..."
+            placeholder="Buscar por marca, modelo, medida, proveedor o código auxiliar..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2">
+          <select aria-label="Estado del producto" className="select" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}>
+            <option value="activos">Activos</option>
+            <option value="inactivos">Inactivos (historial)</option>
+            <option value="todos">Todos los registros</option>
+          </select>
           <Filter className="w-4 h-4 text-[var(--text-muted)]" />
           <select
             className="select"
@@ -151,7 +160,7 @@ export default function InventarioPage() {
                 return (
                   <Link
                     key={llanta.id}
-                    href={`/inventario/${llanta.id}`}
+                    href={`/inventario/inventario/${llanta.id}`}
                     className="block p-4 hover:bg-[var(--bg-hover)] transition-colors"
                   >
                     <div className="flex justify-between items-start mb-2">
@@ -160,6 +169,7 @@ export default function InventarioPage() {
                           {generarCodigoAuxiliar(llanta.medida)}
                         </p>
                         <p className="font-medium">{llanta.marca} {llanta.modelo}</p>
+                        {!llanta.activo && <Badge variant="warning">Inactivo</Badge>}
                         <p className="text-sm text-[var(--text-muted)]">{llanta.medida}</p>
                       </div>
                       <Badge variant={stock > 5 ? 'success' : stock > 0 ? 'warning' : 'danger'}>
@@ -203,10 +213,11 @@ export default function InventarioPage() {
                         </td>
                         <td>
                           <Link
-                            href={`/inventario/${llanta.id}`}
+                            href={`/inventario/inventario/${llanta.id}`}
                             className="hover:text-[var(--accent)]"
                           >
                             <p className="font-medium">{llanta.marca} {llanta.modelo}</p>
+                            {!llanta.activo && <Badge variant="warning">Inactivo</Badge>}
                             <p className="text-xs text-[var(--text-muted)]">{llanta.proveedor}</p>
                           </Link>
                         </td>

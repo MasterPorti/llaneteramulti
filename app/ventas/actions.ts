@@ -6,7 +6,6 @@ import {
   obtenerVenta as getVenta,
   crearVenta as createVenta,
   cancelarVenta as cancelVenta,
-  marcarFacturada,
   obtenerGarantiasActivas as getGarantiasActivas,
 } from '@/lib/data/ventas';
 import type { Venta, VentaInput, ActionResponse } from '@/types';
@@ -14,6 +13,7 @@ import type { Venta, VentaInput, ActionResponse } from '@/types';
 export async function obtenerVentas(filtros?: {
   fechaInicio?: string;
   fechaFin?: string;
+  incluirCanceladas?: boolean;
 }): Promise<ActionResponse<Venta[]>> {
   try {
     const ventas = await getVentas(filtros);
@@ -46,6 +46,10 @@ export async function crearVenta(input: VentaInput): Promise<ActionResponse<Vent
     const venta = await createVenta(input);
     revalidatePath('/ventas');
     revalidatePath('/inventario');
+    revalidatePath('/llantas');
+    revalidatePath('/productos');
+    revalidatePath('/inventario/inventario');
+    revalidatePath('/inventario/ventas');
     revalidatePath('/');
     return { success: true, data: venta };
   } catch (error) {
@@ -68,6 +72,10 @@ export async function cancelarVenta(
     revalidatePath('/ventas');
     revalidatePath(`/ventas/${id}`);
     revalidatePath('/inventario');
+    revalidatePath('/llantas');
+    revalidatePath('/productos');
+    revalidatePath('/inventario/inventario');
+    revalidatePath('/inventario/ventas');
     revalidatePath('/');
     return { success: true, data: venta };
   } catch (error) {
@@ -79,29 +87,11 @@ export async function cancelarVenta(
 }
 
 export async function facturarVenta(id: string): Promise<ActionResponse<Venta>> {
-  try {
-    // Aquí se integraría con la API de Factura Digital existente
-    // Por ahora, simulamos la facturación
-    const facturaInfo = {
-      uuid: `FAC-${Date.now()}`,
-      serie: 'A',
-      folio: Math.floor(Math.random() * 10000).toString(),
-      fechaTimbrado: new Date().toISOString(),
-    };
-
-    const venta = await marcarFacturada(id, facturaInfo);
-    if (!venta) {
-      return { success: false, error: 'Venta no encontrada' };
-    }
-    revalidatePath('/ventas');
-    revalidatePath(`/ventas/${id}`);
-    return { success: true, data: venta };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Error al facturar venta',
-    };
-  }
+  if (!id) return { success: false, error: 'Venta no encontrada' };
+  return {
+    success: false,
+    error: 'La facturación electrónica no está habilitada. No se ha generado ni enviado ningún CFDI.',
+  };
 }
 
 export async function obtenerGarantiasActivas(): Promise<ActionResponse<Venta[]>> {

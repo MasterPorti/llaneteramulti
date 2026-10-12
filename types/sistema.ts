@@ -12,8 +12,12 @@ export interface GarantiaSistema {
 
 // Item de venta del Sistema (solo llantas, sin servicios)
 export interface SistemaVentaItem {
+  tipo?: 'producto' | 'servicio';
+  tipoOriginal?: 'producto' | 'servicio' | 'catalogo' | 'extra';
+  servicioId?: string;
+  servicioNombre?: string;
   llantaId: string;
-  bodega: BodegaId;
+  bodega: BodegaId | '';
   llantaSnapshot: {
     marca: string;
     modelo: string;
@@ -23,6 +27,8 @@ export interface SistemaVentaItem {
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+  costoUnitario?: number;
+  costoSubtotal?: number;
 }
 
 // Cliente del Sistema
@@ -33,11 +39,16 @@ export interface SistemaCliente {
 
 // Venta del Sistema Inventario
 export interface SistemaVenta {
+  ivaPolitica?: 'incluido_16' | null;
+  soloLecturaMigrada?: boolean;
+  datosOriginales?: Record<string, unknown>;
+  datosOriginalesJson?: string;
   id: string;
   folio: string; // Formato: SI-0001
   cliente: SistemaCliente;
   items: SistemaVentaItem[];
   subtotal: number;
+  iva: number;
   total: number;
   metodoPago: 'efectivo' | 'tarjeta' | 'transferencia';
   fechaVenta: string;
@@ -61,6 +72,7 @@ export interface SistemaVentaInput {
   metodoPago: 'efectivo' | 'tarjeta' | 'transferencia';
   diasGarantia?: number;
   condicionesGarantia?: string;
+  sinGarantia?: boolean;
 }
 
 // Estructura de datos del archivo sistema-inventario.json

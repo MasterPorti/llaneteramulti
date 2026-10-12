@@ -3,9 +3,12 @@ import type { BodegaId } from "@/types";
 export const BODEGAS: Array<{ id: BodegaId; nombre: string }> = [
   { id: "bodega-1", nombre: "Local" },
   { id: "bodega-2", nombre: "Escaleras" },
-  { id: "bodega-3", nombre: "Benito" },
-  { id: "bodega-4", nombre: "Hacienda 1" },
-  { id: "bodega-5", nombre: "Coacalco" },
+  { id: "bodega-3", nombre: "Benitos Usadas" },
+  { id: "bodega-4", nombre: "Hacienda" },
+  { id: "bodega-5", nombre: "Coacalco Usadas" },
+  { id: "bodega-6", nombre: "Hacienda 2" },
+  { id: "bodega-7", nombre: "Claudia Usadas Hacienda" },
+  { id: "bodega-8", nombre: "Jose Manuel Teyahualco" },
 ];
 
 export const CONFIG = {
@@ -13,8 +16,14 @@ export const CONFIG = {
   logo: "/images/logo.jpeg",
   direccion:
     "Venustiano Carranza S/N, Santiago Teyahualco, 54980 Santiago Teyahualco, Méx.",
-  telefono: "",
-  rfc: "",
+  telefono: "55 9190 5857",
+  rfc: "GUHA820120MD4",
+  regimenFiscal: "612 - Personas Físicas c/Actividades Empresariales",
+  horarios: [
+    { dia: "Lun – Vie", hora: "9:00 a.m. – 6:00 p.m." },
+    { dia: "Sábado", hora: "9:00 a.m. – 5:00 p.m." },
+    { dia: "Domingo", hora: "Cerrado" },
+  ],
 
   garantiaDiasPredeterminado: 60,
   condicionesGarantiaPredeterminado:

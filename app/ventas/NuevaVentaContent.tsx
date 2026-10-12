@@ -21,7 +21,9 @@ import { obtenerServicios } from '@/app/servicios/actions';
 import { obtenerProductos } from '@/app/productos/actions';
 import { crearVenta } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
-import { getTotalStock, type Llanta, type Servicio, type Producto, type VentaInput } from '@/types';
+import { calcularImportesVenta, calcularImportePartida } from '@/lib/utils/iva';
+import { BODEGAS } from '@/lib/config';
+import { getTotalStock, type BodegaId, type Llanta, type Servicio, type Producto, type VentaInput } from '@/types';
 
 type TabType = 'servicios' | 'productos' | 'llantas';
 type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia';
@@ -30,6 +32,7 @@ interface CartItemLlanta {
   tipo: 'producto';
   id: string;
   llanta: Llanta;
+  bodega: BodegaId;
   cantidad: number;
   precioUnitario: number;
 }
@@ -84,6 +87,8 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   const [searchTerm, setSearchTerm] = useState('');
   const [productoSeleccionado, setProductoSeleccionado] = useState<Llanta | null>(null);
   const [cantidadProducto, setCantidadProducto] = useState(1);
+  const [bodegaSeleccionada, setBodegaSeleccionada] = useState<BodegaId>('bodega-1');
+  const llantaPreseleccionadaRef = useRef<string | null>(null);
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -135,15 +140,22 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
 
   // Auto-select product from URL param
   useEffect(() => {
-    if (llantaIdParam && inventario.length > 0 && !productoSeleccionado) {
+    if (!llantaIdParam) {
+      llantaPreseleccionadaRef.current = null;
+      return;
+    }
+    if (inventario.length > 0 && llantaPreseleccionadaRef.current !== llantaIdParam) {
       const llanta = inventario.find((l) => l.id === llantaIdParam);
       if (llanta) {
+        llantaPreseleccionadaRef.current = llantaIdParam;
         setProductoSeleccionado(llanta);
+        setBodegaSeleccionada(BODEGAS.find((b) => (llanta.stockPorBodega[b.id] || 0) > 0)?.id || 'bodega-1');
+        setCantidadProducto(1);
         setSearchTerm(`${llanta.marca} ${llanta.modelo} - ${llanta.medida}`);
         setActiveTab('llantas');
       }
     }
-  }, [llantaIdParam, inventario, productoSeleccionado]);
+  }, [llantaIdParam, inventario]);
 
   // Barcode scanner handler
   const handleBarcodeSubmit = useCallback((code: string) => {
@@ -244,14 +256,14 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
     );
   });
 
-  // Add llanta to cart (always uses bodega-1)
+  // Keep each tire/warehouse combination separate in the cart.
   const addProductToCart = () => {
     if (!productoSeleccionado) return;
 
-    const stockDisponible = getTotalStock(productoSeleccionado);
+    const stockDisponible = productoSeleccionado.stockPorBodega[bodegaSeleccionada] || 0;
 
     const existingItem = cartItems.find(
-      (item) => item.tipo === 'producto' && item.id === productoSeleccionado.id
+      (item) => item.tipo === 'producto' && item.id === productoSeleccionado.id && item.bodega === bodegaSeleccionada
     ) as CartItemLlanta | undefined;
 
     const alreadyInCart = existingItem ? existingItem.cantidad : 0;
@@ -262,7 +274,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       return;
     }
 
-    if (cantidadProducto <= 0) {
+    if (!Number.isSafeInteger(cantidadProducto) || cantidadProducto <= 0) {
       setError('La cantidad debe ser mayor a 0');
       return;
     }
@@ -270,7 +282,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
     if (existingItem) {
       setCartItems(
         cartItems.map((item) =>
-          item.tipo === 'producto' && item.id === productoSeleccionado.id
+          item.tipo === 'producto' && item.id === productoSeleccionado.id && item.bodega === bodegaSeleccionada
             ? { ...item, cantidad: item.cantidad + cantidadProducto }
             : item
         )
@@ -280,6 +292,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
         tipo: 'producto',
         id: productoSeleccionado.id,
         llanta: productoSeleccionado,
+        bodega: bodegaSeleccionada,
         cantidad: cantidadProducto,
         precioUnitario: productoSeleccionado.precioVenta,
       };
@@ -387,7 +400,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
     const item = cartItems[index];
     if (item.tipo === 'producto') {
       const productItem = item as CartItemLlanta;
-      const stockDisponible = getTotalStock(productItem.llanta);
+      const stockDisponible = productItem.llanta.stockPorBodega[productItem.bodega] || 0;
       if (newQty > stockDisponible) {
         setError(`Solo hay ${stockDisponible} unidades disponibles`);
         return;
@@ -416,11 +429,40 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   // Remove item from cart
   const removeItem = (index: number) => {
     setCartItems(cartItems.filter((_, i) => i !== index));
+    setEditingPrices((prev) => Object.fromEntries(
+      Object.entries(prev)
+        .filter(([key]) => Number(key) !== index)
+        .map(([key, value]) => [Number(key) > index ? Number(key) - 1 : Number(key), value])
+    ));
   };
 
   // Calculations
-  const subtotal = cartItems.reduce((acc, item) => acc + item.precioUnitario * item.cantidad, 0);
-  const total = subtotal;
+  const preciosCompletos = Object.values(editingPrices).every(
+    (value) => value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0
+  );
+  const importes = (() => {
+    if (!preciosCompletos) return null;
+    try {
+      return calcularImportesVenta(cartItems);
+    } catch {
+      return null;
+    }
+  })();
+  const mostrarImportePartida = (item: CartItem, index: number) => {
+    const precioEditado = editingPrices[index];
+    if (precioEditado !== undefined && (precioEditado.trim() === '' || !Number.isFinite(Number(precioEditado)))) {
+      return '—';
+    }
+    try {
+      return formatCurrency(calcularImportePartida(item.precioUnitario, item.cantidad));
+    } catch {
+      return '—';
+    }
+  };
+  const stockSeleccionadoDisponible = productoSeleccionado
+    ? Math.max(0, (productoSeleccionado.stockPorBodega[bodegaSeleccionada] || 0) - cartItems.reduce((sum, item) =>
+      sum + (item.tipo === 'producto' && item.id === productoSeleccionado.id && item.bodega === bodegaSeleccionada ? item.cantidad : 0), 0))
+    : 0;
 
   // Submit sale
   const handleSubmit = async () => {
@@ -428,8 +470,29 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       setError('Agrega al menos un producto o servicio');
       return;
     }
-
-
+    if (!importes) {
+      setError('Completa los precios y las cantidades del carrito con valores válidos.');
+      return;
+    }
+    const cantidadesPorBodega = new Map<string, number>();
+    for (const item of cartItems) {
+      if (!Number.isSafeInteger(item.cantidad) || item.cantidad <= 0 || !Number.isFinite(item.precioUnitario) || item.precioUnitario < 0) {
+        setError('Revisa las cantidades y los precios del carrito.');
+        return;
+      }
+      if (item.tipo === 'producto') {
+        const key = `${item.id}:${item.bodega}`;
+        const cantidad = (cantidadesPorBodega.get(key) || 0) + item.cantidad;
+        cantidadesPorBodega.set(key, cantidad);
+        const llanta = inventario.find((entry) => entry.id === item.id);
+        const stock = llanta?.stockPorBodega[item.bodega] || 0;
+        if (cantidad > stock) {
+          const bodega = BODEGAS.find((entry) => entry.id === item.bodega)?.nombre || item.bodega;
+          setError(`Solo hay ${stock} unidades de ${item.llanta.marca} ${item.llanta.modelo} en ${bodega}.`);
+          return;
+        }
+      }
+    }
     setLoading(true);
     setError('');
 
@@ -443,7 +506,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
             tipo: 'producto' as const,
             id: prodItem.id,
             cantidad: prodItem.cantidad,
-            bodega: 'bodega-1' as const,
+            bodega: prodItem.bodega,
             precioCustom: prodItem.precioUnitario !== prodItem.llanta.precioVenta ? prodItem.precioUnitario : undefined,
           };
         } else if (item.tipo === 'catalogo') {
@@ -724,7 +787,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                             {formatCurrency(productoSeleccionado.precioVenta)}
                           </p>
                           <p className="text-xs text-blue-600 mt-1">
-                            {getTotalStock(productoSeleccionado)} unidades disponibles
+                            {stockSeleccionadoDisponible} unidades disponibles en esta bodega
                           </p>
                         </div>
                         <button
@@ -734,6 +797,24 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                         >
                           ✕
                         </button>
+                      </div>
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-blue-800 mb-1" htmlFor="bodega-venta">Bodega</label>
+                        <select
+                          id="bodega-venta"
+                          className="input w-full text-sm"
+                          value={bodegaSeleccionada}
+                          onChange={(event) => {
+                            setBodegaSeleccionada(event.target.value as BodegaId);
+                            setCantidadProducto(1);
+                            setError('');
+                          }}
+                        >
+                          {BODEGAS.map((bodega) => {
+                            const stock = productoSeleccionado.stockPorBodega[bodega.id] || 0;
+                            return <option key={bodega.id} value={bodega.id} disabled={stock === 0}>{bodega.nombre} ({stock} disp.)</option>;
+                          })}
+                        </select>
                       </div>
                       <div className="flex gap-3 items-center">
                         <div className="flex items-center border border-blue-300 rounded-lg overflow-hidden">
@@ -751,8 +832,8 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           <button
                             type="button"
                             className="px-3 py-2 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-40"
-                            onClick={() => setCantidadProducto((q) => Math.min(getTotalStock(productoSeleccionado), q + 1))}
-                            disabled={cantidadProducto >= getTotalStock(productoSeleccionado)}
+                            onClick={() => setCantidadProducto((q) => Math.min(stockSeleccionadoDisponible, q + 1))}
+                            disabled={cantidadProducto >= stockSeleccionadoDisponible}
                           >
                             <Plus className="w-4 h-4" />
                           </button>
@@ -761,6 +842,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           type="button"
                           className="btn btn-primary flex items-center gap-2"
                           onClick={addProductToCart}
+                          disabled={stockSeleccionadoDisponible <= 0}
                         >
                           <Plus className="w-4 h-4" />
                           Agregar al carrito
@@ -785,6 +867,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                             type="button"
                             onClick={() => {
                               setProductoSeleccionado(llanta);
+                              setBodegaSeleccionada(BODEGAS.find((b) => (llanta.stockPorBodega[b.id] || 0) > 0)?.id || 'bodega-1');
                               setCantidadProducto(1);
                             }}
                             className={`p-3 border-2 rounded-lg transition-all text-left group ${
@@ -916,7 +999,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
               </h2>
               <div className="text-right">
                 <span className="text-sm text-gray-500 mr-2">Total:</span>
-                <span className="text-xl font-bold text-blue-600">{formatCurrency(total)}</span>
+                <span className="text-xl font-bold text-blue-600">{importes ? formatCurrency(importes.total) : '—'}</span>
               </div>
             </div>
             <div className="card-body p-0">
@@ -949,10 +1032,12 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         {item.tipo === 'producto' ? (
-                          <p className="font-medium text-sm">
-                            {(item as CartItemLlanta).llanta.marca}{' '}
-                            {(item as CartItemLlanta).llanta.modelo}
-                          </p>
+                          <>
+                            <p className="font-medium text-sm">
+                              {item.llanta.marca}{' '}{item.llanta.modelo}
+                            </p>
+                            <p className="text-xs text-gray-500">{BODEGAS.find((b) => b.id === item.bodega)?.nombre}</p>
+                          </>
                         ) : item.tipo === 'catalogo' ? (
                           <p className="font-medium text-sm">{(item as CartItemCatalogo).producto.nombre}</p>
                         ) : item.tipo === 'extra' ? (
@@ -990,7 +1075,8 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           inputMode="decimal"
                           className="w-20 text-right text-sm font-medium border border-gray-100 hover:border-gray-300 focus:border-blue-400 focus:outline-none rounded px-1 py-0.5 bg-transparent focus:bg-white"
                           value={editingPrices[index] ?? item.precioUnitario.toString()}
-                          title="Precio unitario"
+                          title="Precio unitario con IVA incluido"
+                          aria-label="Precio unitario con IVA incluido"
                           onChange={(e) => {
                             const v = e.target.value;
                             if (v === '' || /^\d*\.?\d{0,2}$/.test(v)) {
@@ -1000,11 +1086,13 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                             }
                           }}
                           onFocus={(e) => {
-                            setEditingPrices((prev) => ({ ...prev, [index]: item.precioUnitario.toString() }));
+                            setEditingPrices((prev) => ({ ...prev, [index]: prev[index] ?? item.precioUnitario.toString() }));
                             e.target.select();
                           }}
                           onBlur={() => {
                             setEditingPrices((prev) => {
+                              const value = prev[index];
+                              if (value !== undefined && (value.trim() === '' || !Number.isFinite(Number(value)))) return prev;
                               const next = { ...prev };
                               delete next[index];
                               return next;
@@ -1012,7 +1100,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           }}
                         />
                         {item.cantidad > 1 && (
-                          <p className="text-xs text-gray-400">= {formatCurrency(item.precioUnitario * item.cantidad)}</p>
+                          <p className="text-xs text-gray-400">= {mostrarImportePartida(item, index)}</p>
                         )}
                       </div>
 
@@ -1029,15 +1117,30 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                 </div>
               )}
             </div>
+            <div className="border-t border-gray-100 p-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Subtotal</span>
+                <span>{importes ? formatCurrency(importes.subtotal) : '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">IVA (16% incluido)</span>
+                <span>{importes ? formatCurrency(importes.iva) : '—'}</span>
+              </div>
+              <div className="flex justify-between font-bold">
+                <span>Total</span>
+                <span>{importes ? formatCurrency(importes.total) : '—'}</span>
+              </div>
+              {!importes && <p className="text-red-600">Completa los precios y las cantidades para calcular el importe.</p>}
+            </div>
           </div>
 
           {/* Submit Button */}
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || cartItems.length === 0}
+            disabled={loading || cartItems.length === 0 || !importes}
             className={`w-full py-4 px-6 rounded-lg text-white font-bold text-lg transition-all ${
-              loading || cartItems.length === 0
+              loading || cartItems.length === 0 || !importes
                 ? 'bg-gray-300 cursor-not-allowed'
                 : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-lg hover:shadow-xl'
             }`}
@@ -1048,7 +1151,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                 Procesando...
               </span>
             ) : (
-              `Completar Venta - ${formatCurrency(total)}`
+              importes ? `Completar Venta - ${formatCurrency(importes.total)}` : 'Completar Venta'
             )}
           </button>
 

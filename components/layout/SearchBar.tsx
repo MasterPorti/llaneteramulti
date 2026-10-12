@@ -80,7 +80,7 @@ export function SearchBar({ servicios = [] }: SearchBarProps) {
   const handleProductClick = (producto: LlantaSuggestion) => {
     setIsOpen(false);
     setQuery('');
-    router.push(`/inventario/${producto.id}`);
+    router.push(`/llantas/${producto.id}`);
   };
 
   useEffect(() => {

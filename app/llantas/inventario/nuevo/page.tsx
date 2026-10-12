@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardFooter, Button, Input, Select } from '@/components/ui';
 import { crearLlanta } from '../actions';
-import { MARCAS_LLANTAS, RINES_COMUNES, type LlantaInput, type BodegaId } from '@/types';
-import { BODEGAS } from '@/lib/config';
+import { MARCAS_LLANTAS, RINES_COMUNES, type LlantaInput } from '@/types';
 import { Save } from 'lucide-react';
+import { BODEGAS } from '@/lib/config';
+import { getMexicoDateString } from '@/lib/utils/formatters';
 
 export default function NuevaLlantaPage() {
   const router = useRouter();
@@ -28,13 +29,13 @@ export default function NuevaLlantaPage() {
   const [formData, setFormData] = useState<LlantaInput>({
     marca: '',
     modelo: '',
-    medida: '',
+    medida: '205/55R16',
     precioCompra: 0,
     precioVenta: 0,
     cantidad: 1,
-    bodega: 'bodega-1' as BodegaId,
-    proveedor: '',
-    fechaRecepcion: new Date().toISOString().split('T')[0],
+    bodega: 'bodega-1',
+    proveedor: 'COMERCIALIZADORA DE NEW TIRES',
+    fechaRecepcion: getMexicoDateString(),
   });
 
   const [medidaPartes, setMedidaPartes] = useState({
@@ -66,7 +67,7 @@ export default function NuevaLlantaPage() {
     const result = await crearLlanta(dataToSend);
 
     if (result.success) {
-      router.push('/inventario');
+      router.push('/llantas');
     } else {
       setError(result.error || 'Error al crear la llanta');
       setLoading(false);
@@ -84,7 +85,7 @@ export default function NuevaLlantaPage() {
         title="Nueva Llanta"
         subtitle="Agregar llanta al inventario"
         breadcrumbs={[
-          { label: 'Inventario', href: '/inventario' },
+          { label: 'Inventario', href: '/llantas' },
           { label: 'Nueva Llanta' },
         ]}
       />
@@ -215,10 +216,11 @@ export default function NuevaLlantaPage() {
               <div>
                 <label className="label">Cantidad *</label>
                 <input
-                  type="text"
+                  type="number"
                   inputMode="numeric"
                   className="input"
                   placeholder="1"
+                  min="1"
                   value={cantidadStr}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -229,14 +231,20 @@ export default function NuevaLlantaPage() {
                   required
                 />
               </div>
+              <Select label="Bodega inicial" name="bodega" value={formData.bodega}
+                options={BODEGAS.map((bodega) => ({ value: bodega.id, label: bodega.nombre }))}
+                onChange={(e) => setFormData({ ...formData, bodega: e.target.value as LlantaInput['bodega'] })} />
+            </div>
 
-              <Select
-                label="Bodega destino"
-                name="bodega"
-                value={formData.bodega}
-                onChange={(e) => setFormData({ ...formData, bodega: e.target.value as BodegaId })}
-                options={BODEGAS.map((b) => ({ value: b.id, label: b.nombre }))}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label="Precio Mayorista" name="precioMayorista" type="number" min="0" step="0.01" value={formData.precioMayorista ?? ''}
+                onChange={(e) => setFormData({ ...formData, precioMayorista: Number(e.target.value) })} />
+              <Input label="Tipo de llanta usada" name="tipoUsada" value={formData.tipoUsada ?? ''}
+                onChange={(e) => setFormData({ ...formData, tipoUsada: e.target.value })} />
+              <Input label="Vida" name="vida" value={formData.vida ?? ''}
+                onChange={(e) => setFormData({ ...formData, vida: e.target.value })} />
+              <Input label="Publicada" name="publicada" value={formData.publicada ?? ''}
+                onChange={(e) => setFormData({ ...formData, publicada: e.target.value })} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

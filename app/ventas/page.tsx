@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/layout";
-import { Button, Card, CardBody, Badge } from "@/components/ui";
+import { Button, Card, CardBody } from "@/components/ui";
 import { obtenerVentas } from "./actions";
-import { formatCurrency } from "@/lib/utils/formatters";
+import { formatCurrency, getMexicoDateString } from "@/lib/utils/formatters";
 import { VentasTable } from "./VentasTable";
 
+export const dynamic = 'force-dynamic';
+
 export default async function VentasPage() {
-  const result = await obtenerVentas();
+  const result = await obtenerVentas({ incluirCanceladas: true });
   const ventas = result.data || [];
 
-  const hoy = new Date().toISOString().split("T")[0];
-  const ventasHoy = ventas.filter((v) => v.fechaVenta.split("T")[0] === hoy);
+  const hoy = getMexicoDateString();
+  const vigentes = ventas.filter((venta) => !venta.cancelada);
+  const ventasHoy = vigentes.filter((v) => getMexicoDateString(new Date(v.fechaVenta)) === hoy);
   const totalHoy = ventasHoy.reduce((acc, v) => acc + v.total, 0);
-  const totalMes = ventas
-    .filter((v) => v.fechaVenta.startsWith(hoy.slice(0, 7)))
+  const totalMes = vigentes
+    .filter((v) => getMexicoDateString(new Date(v.fechaVenta)).startsWith(hoy.slice(0, 7)))
     .reduce((acc, v) => acc + v.total, 0);
 
   return (
@@ -22,9 +25,19 @@ export default async function VentasPage() {
         title="Ventas"
         subtitle="Historial de ventas realizadas"
         actions={
-          <Link href="/ventas/nueva">
-            <Button>Nueva Venta</Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="https://sistema.conectia.mx/cfdi4/users/login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+            >
+              Generar Factura
+            </a>
+            <Link href="/ventas/nueva">
+              <Button>Nueva Venta</Button>
+            </Link>
+          </div>
         }
       />
 

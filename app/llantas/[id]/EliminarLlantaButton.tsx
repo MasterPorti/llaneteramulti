@@ -29,27 +29,27 @@ export function EliminarLlantaButton({ id }: Props) {
   return (
     <>
       <Button variant="danger" onClick={() => setShowModal(true)}>
-        Eliminar
+        Desactivar
       </Button>
 
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title="Confirmar Eliminación"
+        title="Confirmar desactivación"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>
               Cancelar
             </Button>
             <Button variant="danger" onClick={handleEliminar} loading={loading}>
-              Sí, Eliminar
+              Sí, desactivar
             </Button>
           </>
         }
       >
-        <p>¿Estás seguro de que deseas eliminar esta llanta del inventario?</p>
+        <p>¿Deseas retirar esta llanta del inventario activo?</p>
         <p className="text-sm text-gray-500 mt-2">
-          Esta acción no se puede deshacer.
+          El registro y su historial se conservarán para consulta.
         </p>
       </Modal>
     </>

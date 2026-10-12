@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { PageHeader } from '@/components/layout';
 import { Button, Card, CardBody, Input } from '@/components/ui';
-import { Wrench, Plus, Pencil, Trash2, Check, X, DollarSign, ScanBarcode } from 'lucide-react';
+import { Wrench, Plus, Pencil, Trash2, Check, X, DollarSign, ScanBarcode, Printer } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { imprimirCodigosServicios } from '@/lib/utils/print-service-barcodes';
 import JsBarcode from 'jsbarcode';
 
 function descargarCodigoBarras(servicio: { nombre: string; codigoBarras: string; id: string }) {
@@ -51,8 +53,32 @@ export default function ServiciosPage() {
 
   const [saving, setSaving] = useState(false);
 
+  async function handlePrint(selection: Servicio[]) {
+    try {
+      await imprimirCodigosServicios(selection);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Error al imprimir los códigos de barras');
+    }
+  }
+
   useEffect(() => {
-    cargarServicios();
+    let active = true;
+    obtenerServicios().then((result) => {
+      if (!active) return;
+      if (result.success && result.data) {
+        setServicios(result.data);
+        setError(null);
+      } else {
+        setError(result.error || 'Error al cargar servicios');
+      }
+      setLoading(false);
+    }).catch(() => {
+      if (active) {
+        setError('Error al cargar servicios');
+        setLoading(false);
+      }
+    });
+    return () => { active = false; };
   }, []);
 
   async function cargarServicios() {
@@ -154,10 +180,16 @@ export default function ServiciosPage() {
           { label: 'Servicios' },
         ]}
         actions={
-          <Button onClick={handleStartAdd} disabled={isAdding}>
-            <Plus className="w-4 h-4" />
-            Nuevo Servicio
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => handlePrint(servicios)} disabled={loading || !servicios.length}>
+              <Printer className="w-4 h-4" />
+              Imprimir todos
+            </Button>
+            <Link href="/servicios/nuevo" className="btn btn-primary">
+              <Plus className="w-4 h-4" />
+              Nuevo Servicio
+            </Link>
+          </div>
         }
       />
 
@@ -355,6 +387,14 @@ export default function ServiciosPage() {
                         </h3>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        <button
+                          onClick={() => handlePrint([servicio])}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                          title="Imprimir código de barras"
+                          aria-label={`Imprimir código de barras de ${servicio.nombre}`}
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => descargarCodigoBarras(servicio)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"

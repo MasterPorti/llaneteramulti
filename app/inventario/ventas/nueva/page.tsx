@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShoppingCart, Plus, Trash2, Search, Package, Save, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, Trash2, Search, Package, Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
@@ -10,6 +10,7 @@ import { buscarLlantas, obtenerInventario } from '../../inventario/actions';
 import { crearVenta } from '../actions';
 import { SISTEMA_BODEGAS, SISTEMA_CONFIG, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { calcularImportesVenta, calcularImportePartida } from '@/lib/utils/iva';
 import type { Llanta, BodegaId, LlantaSuggestion } from '@/types';
 
 interface ItemVenta {
@@ -47,6 +48,8 @@ export default function NuevaVentaPage() {
     const result = await obtenerInventario();
     if (result.success && result.data) {
       setInventario(result.data);
+    } else {
+      setError(result.error || 'No se pudo cargar el inventario');
     }
   };
 
@@ -109,8 +112,25 @@ export default function NuevaVentaPage() {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const calcularTotal = () => {
-    return items.reduce((acc, item) => acc + item.cantidad * item.precioUnitario, 0);
+  const camposCompletos = (item: ItemVenta) => (
+    item.precioStr.trim() !== '' && Number.isFinite(Number(item.precioStr)) &&
+    item.cantidadStr.trim() !== '' && Number.isSafeInteger(item.cantidad) && item.cantidad > 0
+  );
+  const importes = (() => {
+    if (!items.every(camposCompletos)) return null;
+    try {
+      return calcularImportesVenta(items);
+    } catch {
+      return null;
+    }
+  })();
+  const mostrarImportePartida = (item: ItemVenta) => {
+    if (!camposCompletos(item)) return '—';
+    try {
+      return formatCurrency(calcularImportePartida(item.precioUnitario, item.cantidad));
+    } catch {
+      return '—';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,6 +138,10 @@ export default function NuevaVentaPage() {
 
     if (items.length === 0) {
       setError('Agrega al menos un producto');
+      return;
+    }
+    if (!importes) {
+      setError('Completa los precios y las cantidades con valores válidos.');
       return;
     }
 
@@ -324,7 +348,7 @@ export default function NuevaVentaPage() {
                               />
                             </div>
                             <div>
-                              <label className="label text-xs">Precio Unit.</label>
+                              <label className="label text-xs">Precio Unit. (IVA incluido)</label>
                               <input
                                 type="text"
                                 inputMode="decimal"
@@ -345,9 +369,9 @@ export default function NuevaVentaPage() {
                           </div>
 
                           <div className="mt-2 text-right">
-                            <span className="text-sm text-[var(--text-muted)]">Subtotal: </span>
+                            <span className="text-sm text-[var(--text-muted)]">Importe: </span>
                             <span className="font-bold">
-                              {formatCurrency(item.cantidad * item.precioUnitario)}
+                              {mostrarImportePartida(item)}
                             </span>
                           </div>
                         </div>
@@ -429,14 +453,23 @@ export default function NuevaVentaPage() {
                 </div>
 
                 <div className="pt-4 border-t border-[var(--border-color)]">
+                  <div className="flex justify-between items-center mb-2">
+                    <span>Subtotal</span>
+                    <span>{importes ? formatCurrency(importes.subtotal) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span>IVA (16% incluido)</span>
+                    <span>{importes ? formatCurrency(importes.iva) : '—'}</span>
+                  </div>
                   <div className="flex justify-between items-center mb-4">
                     <span className="font-bold text-lg">Total</span>
-                    <span className="font-bold text-2xl">{formatCurrency(calcularTotal())}</span>
+                    <span className="font-bold text-2xl">{importes ? formatCurrency(importes.total) : '—'}</span>
                   </div>
+                  {!importes && <p className="mb-4 text-sm text-red-600">Completa los precios y las cantidades para calcular el importe.</p>}
 
                   <button
                     type="submit"
-                    disabled={loading || items.length === 0}
+                    disabled={loading || items.length === 0 || !importes}
                     className="btn btn-primary w-full flex items-center justify-center gap-2"
                   >
                     {loading ? (

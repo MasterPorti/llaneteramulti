@@ -1,5 +1,8 @@
+import { Fragment } from 'react';
+import Image from 'next/image';
 import { CONFIG } from '@/lib/config';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
+import { descripcionTipoPartida } from '@/lib/utils/venta-item';
 import type { Venta } from '@/types';
 
 interface Props {
@@ -10,10 +13,22 @@ export function TicketPrint({ venta }: Props) {
   return (
     <div className="ticket">
       <div className="ticket-header">
-        <p className="text-lg font-bold">{CONFIG.nombreNegocio}</p>
-        {CONFIG.direccion && <p>{CONFIG.direccion}</p>}
-        {CONFIG.telefono && <p>Tel: {CONFIG.telefono}</p>}
-        {CONFIG.rfc && <p>RFC: {CONFIG.rfc}</p>}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '3mm' }}>
+          <Image src={CONFIG.logo} alt="Logo" width={100} height={45}
+            style={{ objectFit: 'contain', maxWidth: '100%', height: 'auto' }} />
+        </div>
+        <p style={{ fontSize: '12pt', fontWeight: 900, letterSpacing: '0.03em' }}>{CONFIG.nombreNegocio}</p>
+        {CONFIG.direccion && <p style={{ fontSize: '7.5pt', marginTop: '1mm' }}>{CONFIG.direccion}</p>}
+        {CONFIG.telefono && <p style={{ fontSize: '8pt' }}>Tel: {CONFIG.telefono}</p>}
+        <div className="ticket-divider" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: '4mm', rowGap: '0.5mm', fontSize: '7.5pt', textAlign: 'left' }}>
+          {CONFIG.horarios.map(({ dia, hora }) => (
+            <Fragment key={dia}><span style={{ fontWeight: 700 }}>{dia}</span><span>{hora}</span></Fragment>
+          ))}
+        </div>
+        <div className="ticket-divider" />
+        {CONFIG.rfc && <p style={{ fontSize: '7.5pt' }}><strong>RFC:</strong> {CONFIG.rfc}</p>}
+        <p style={{ fontSize: '7pt', color: '#444' }}>{CONFIG.regimenFiscal}</p>
       </div>
 
       <div className="ticket-row">
@@ -39,7 +54,7 @@ export function TicketPrint({ venta }: Props) {
           <tr>
             <th className="font-normal">Concepto</th>
             <th className="font-normal text-right">Cant</th>
-            <th className="font-normal text-right">Total</th>
+            <th className="font-normal text-right">Importe</th>
           </tr>
         </thead>
         <tbody>
@@ -59,7 +74,7 @@ export function TicketPrint({ venta }: Props) {
                   <>
                     <div className="text-xs">{item.servicioNombre}</div>
                     <div className="text-xs text-gray-600">
-                      Servicio @ {formatCurrency(item.precioUnitario)}
+                      {descripcionTipoPartida(item)} @ {formatCurrency(item.precioUnitario)}
                     </div>
                   </>
                 )}
@@ -73,22 +88,15 @@ export function TicketPrint({ venta }: Props) {
 
       <div className="ticket-divider" />
 
-      {(() => {
-        const subtotalSinIva = venta.total / 1.16;
-        const iva = venta.total - subtotalSinIva;
-        return (
-          <>
-            <div className="ticket-row">
-              <span>Subtotal:</span>
-              <span>{formatCurrency(subtotalSinIva)}</span>
-            </div>
-            <div className="ticket-row">
-              <span>IVA (16%):</span>
-              <span>{formatCurrency(iva)}</span>
-            </div>
-          </>
-        );
-      })()}
+      {/* El ticket usa los importes registrados, igual que el reporte y el CSV. */}
+      <div className="ticket-row">
+        <span>Subtotal:</span>
+        <span>{formatCurrency(venta.subtotal)}</span>
+      </div>
+      <div className="ticket-row">
+        <span>{venta.ivaPolitica === 'incluido_16' ? 'IVA (16% incluido):' : 'IVA registrado:'}</span>
+        <span>{formatCurrency(venta.iva)}</span>
+      </div>
 
       <div className="ticket-row ticket-total">
         <span>TOTAL:</span>

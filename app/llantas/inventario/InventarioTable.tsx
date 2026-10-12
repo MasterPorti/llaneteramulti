@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Table, Badge } from '@/components/ui';
 import { getTotalStock, type Llanta } from '@/types';
-import { formatCurrency, formatDateShort } from '@/lib/utils/formatters';
+import { formatCurrency } from '@/lib/utils/formatters';
 import { BODEGAS } from '@/lib/config';
 
 interface InventarioTableProps {
@@ -68,7 +68,7 @@ export function InventarioTable({ inventario }: InventarioTableProps) {
       columns={columns}
       data={inventario}
       keyExtractor={(item) => item.id}
-      onRowClick={(item) => router.push(`/inventario/${item.id}`)}
+      onRowClick={(item) => router.push(`/llantas/${item.id}`)}
       emptyMessage="No hay llantas en inventario. Agrega la primera."
     />
   );

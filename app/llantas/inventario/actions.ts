@@ -14,9 +14,9 @@ import {
 } from '@/lib/data/inventario';
 import type { Llanta, LlantaInput, LlantaSuggestion, BodegaId, ActionResponse } from '@/types';
 
-export async function obtenerInventario(): Promise<ActionResponse<Llanta[]>> {
+export async function obtenerInventario(filtros?: { incluirInactivos?: boolean }): Promise<ActionResponse<Llanta[]>> {
   try {
-    const inventario = await getInventario();
+    const inventario = await getInventario(filtros);
     return { success: true, data: inventario };
   } catch (error) {
     return {
@@ -26,9 +26,9 @@ export async function obtenerInventario(): Promise<ActionResponse<Llanta[]>> {
   }
 }
 
-export async function obtenerLlanta(id: string): Promise<ActionResponse<Llanta>> {
+export async function obtenerLlanta(id: string, incluirInactivos = false): Promise<ActionResponse<Llanta>> {
   try {
-    const llanta = await getLlanta(id);
+    const llanta = await getLlanta(id, incluirInactivos);
     if (!llanta) {
       return { success: false, error: 'Llanta no encontrada' };
     }
@@ -56,7 +56,8 @@ export async function buscarLlantas(termino: string): Promise<ActionResponse<Lla
 export async function crearLlanta(input: LlantaInput): Promise<ActionResponse<Llanta>> {
   try {
     const llanta = await createLlanta(input);
-    revalidatePath('/inventario');
+    revalidatePath('/llantas');
+    revalidatePath('/llantas/inventario');
     revalidatePath('/');
     return { success: true, data: llanta };
   } catch (error) {
@@ -76,8 +77,9 @@ export async function actualizarLlanta(
     if (!llanta) {
       return { success: false, error: 'Llanta no encontrada' };
     }
-    revalidatePath('/inventario');
-    revalidatePath(`/inventario/${id}`);
+    revalidatePath('/llantas');
+    revalidatePath('/llantas/inventario');
+    revalidatePath(`/llantas/${id}`);
     revalidatePath('/');
     return { success: true, data: llanta };
   } catch (error) {
@@ -94,7 +96,8 @@ export async function eliminarLlanta(id: string): Promise<ActionResponse> {
     if (!eliminada) {
       return { success: false, error: 'Llanta no encontrada' };
     }
-    revalidatePath('/inventario');
+    revalidatePath('/llantas');
+    revalidatePath('/llantas/inventario');
     revalidatePath('/');
     return { success: true };
   } catch (error) {
@@ -115,8 +118,9 @@ export async function ajustarStock(
     if (!llanta) {
       return { success: false, error: 'Llanta no encontrada' };
     }
-    revalidatePath('/inventario');
-    revalidatePath(`/inventario/${id}`);
+    revalidatePath('/llantas');
+    revalidatePath('/llantas/inventario');
+    revalidatePath(`/llantas/${id}`);
     revalidatePath('/');
     return { success: true, data: llanta };
   } catch (error) {
@@ -148,8 +152,9 @@ export async function moverStockAction(
   try {
     const llanta = await moveStock(llantaId, bodegaOrigen, bodegaDestino, cantidad);
     if (!llanta) return { success: false, error: 'Producto no encontrado' };
-    revalidatePath('/inventario');
-    revalidatePath('/inventario/bodegas');
+    revalidatePath('/llantas');
+    revalidatePath('/llantas/inventario');
+    revalidatePath('/llantas/inventario');
     return { success: true, data: llanta };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Error al mover stock' };

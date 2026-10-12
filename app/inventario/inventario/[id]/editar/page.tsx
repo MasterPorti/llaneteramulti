@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Save, Package } from 'lucide-react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader } from '@/components/ui';
 import { actualizarLlanta } from '../../actions';
+import type { LlantaInput } from '@/types';
 
 interface LlantaData {
   id: string;
@@ -15,6 +16,10 @@ interface LlantaData {
   medida: string;
   precioCompra: number;
   precioVenta: number;
+  precioMayorista?: number;
+  tipoUsada?: string;
+  vida?: string;
+  publicada?: string;
   proveedor: string;
   fechaRecepcion: string;
 }
@@ -27,6 +32,7 @@ export default function EditarLlantaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const initialData = useRef<LlantaData | null>(null);
 
   const [formData, setFormData] = useState<LlantaData>({
     id: '',
@@ -40,24 +46,27 @@ export default function EditarLlantaPage() {
   });
 
   useEffect(() => {
-    loadLlanta();
-  }, [id]);
-
-  const loadLlanta = async () => {
+    const loadLlanta = async () => {
     try {
-      const response = await fetch(`/api/inventario/inventario/${id}`);
+      const response = await fetch(`/api/sistema/inventario/${id}`);
       if (response.ok) {
         const llanta = await response.json();
-        setFormData({
+        const values: LlantaData = {
           id: llanta.id,
           marca: llanta.marca,
           modelo: llanta.modelo,
           medida: llanta.medida,
           precioCompra: llanta.precioCompra,
           precioVenta: llanta.precioVenta,
+          precioMayorista: llanta.precioMayorista,
+          tipoUsada: llanta.tipoUsada,
+          vida: llanta.vida,
+          publicada: llanta.publicada,
           proveedor: llanta.proveedor || '',
-          fechaRecepcion: llanta.fechaRecepcion || '',
-        });
+          fechaRecepcion: llanta.fechaRecepcion?.slice(0, 10) || '',
+        };
+        initialData.current = values;
+        setFormData(values);
       } else {
         setError('Llanta no encontrada');
       }
@@ -66,22 +75,22 @@ export default function EditarLlantaPage() {
     } finally {
       setLoading(false);
     }
-  };
+    };
+    void loadLlanta();
+  }, [id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSaving(true);
 
-    const result = await actualizarLlanta(id, {
-      marca: formData.marca,
-      modelo: formData.modelo,
-      medida: formData.medida,
-      precioCompra: formData.precioCompra,
-      precioVenta: formData.precioVenta,
-      proveedor: formData.proveedor,
-      fechaRecepcion: formData.fechaRecepcion,
-    });
+    // Send only fields the user changed, preserving original values and date precision.
+    const changes = Object.fromEntries(
+      Object.entries(formData).filter(([key, value]) =>
+        key !== 'id' && value !== initialData.current?.[key as keyof LlantaData]
+      )
+    ) as Partial<LlantaInput>;
+    const result = await actualizarLlanta(id, changes);
 
     if (result.success) {
       router.push(`/inventario/inventario/${id}`);
@@ -240,6 +249,27 @@ export default function EditarLlantaPage() {
                 </div>
               </div>
 
+              <div>
+                <label className="label">Precio Mayorista</label>
+                <input type="number" className="input w-full" value={formData.precioMayorista ?? ''}
+                  min="0" step="0.01"
+                  onChange={(e) => setFormData({ ...formData, precioMayorista: Number(e.target.value) })} />
+              </div>
+              <div>
+                <label className="label">Tipo de llanta usada</label>
+                <input type="text" className="input w-full" value={formData.tipoUsada ?? ''}
+                  onChange={(e) => setFormData({ ...formData, tipoUsada: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Vida</label>
+                <input type="text" className="input w-full" value={formData.vida ?? ''}
+                  onChange={(e) => setFormData({ ...formData, vida: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Publicada</label>
+                <input type="text" className="input w-full" value={formData.publicada ?? ''}
+                  onChange={(e) => setFormData({ ...formData, publicada: e.target.value })} />
+              </div>
               <div>
                 <label className="label">Fecha de Recepción</label>
                 <input
