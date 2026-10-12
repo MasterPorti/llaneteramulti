@@ -145,6 +145,15 @@ export async function verifyPublishedUnchanged(client, published) {
   return comparisons;
 }
 
+export const historicalTruncateSql = `
+CREATE FUNCTION migration_new_tires.reject_historical_truncate() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'El historial de ventas no admite TRUNCATE'; END $$;
+CREATE TRIGGER protect_new_tires_sales_truncate BEFORE TRUNCATE ON public.ventas
+FOR EACH STATEMENT EXECUTE FUNCTION migration_new_tires.reject_historical_truncate();
+CREATE TRIGGER protect_new_tires_items_truncate BEFORE TRUNCATE ON public.venta_items
+FOR EACH STATEMENT EXECUTE FUNCTION migration_new_tires.reject_historical_truncate();
+`;
+
 export const protectionsSql = `
 CREATE FUNCTION migration_new_tires.reject_archive_changes() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN RAISE EXCEPTION 'Archivo original de migración inmutable'; END $$;
@@ -171,6 +180,7 @@ CREATE TRIGGER protect_new_tires_sales BEFORE UPDATE OR DELETE ON public.ventas
 FOR EACH ROW EXECUTE FUNCTION migration_new_tires.protect_historical_sales();
 CREATE TRIGGER protect_new_tires_items BEFORE INSERT OR UPDATE OR DELETE ON public.venta_items
 FOR EACH ROW EXECUTE FUNCTION migration_new_tires.protect_historical_items();
+${historicalTruncateSql}
 REVOKE ALL ON SCHEMA migration_new_tires FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA migration_new_tires FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA migration_new_tires FROM PUBLIC;

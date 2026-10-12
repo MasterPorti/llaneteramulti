@@ -21,19 +21,24 @@ const envIndex=process.argv.indexOf('--env');
 const envArgument=envIndex===-1?undefined:process.argv[envIndex+1];
 const appEnvIndex=process.argv.indexOf('--app-env');
 const appEnvArgument=appEnvIndex===-1?undefined:process.argv[appEnvIndex+1];
+const existingOwner=process.argv.includes('--existing-owner');
+const gateDelta=process.argv.includes('--gate-delta');
 
 function loadAdapters(env,database){
   const ts=require('typescript');
-  const keys=['DATABASE_URL','LLANTERA_EXPECTED_DATABASE','DB_REQUIRE_SSL','DB_SSL_REJECT_UNAUTHORIZED'];
+  const keys=['DATABASE_URL','LLANTERA_EXPECTED_DATABASE','LLANTERA_APPLICATION_ID','DB_REQUIRE_SSL','DB_SSL_REJECT_UNAUTHORIZED'];
   const previous=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
   process.env.DATABASE_URL=env.DATABASE_URL;process.env.LLANTERA_EXPECTED_DATABASE=database;
+  process.env.LLANTERA_APPLICATION_ID=env.LLANTERA_APPLICATION_ID;
   process.env.DB_REQUIRE_SSL=env.DB_REQUIRE_SSL||'false';
   const originalResolve=Module._resolveFilename,originalLoad=Module._load,originalTs=require.extensions['.ts'];
   class TestPool extends pg.Pool {
     constructor(config){
       assert.equal(new URL(config.connectionString).pathname.slice(1),database,'REAL_DATABASE_CONNECTION_REFUSED');
       assert.ok(temporaryPattern.test(database),'NON_TEST_DATABASE_REFUSED');
-      super({...config,connectionTimeoutMillis:20000,statement_timeout:30000,application_name:'published-app-isolated-integration'});
+      assert.match(config.application_name,/^llm:[a-f0-9]{48}$/,'APP_VERSION_MARKER_REQUIRED');
+      assert.equal(config.application_name,env.LLANTERA_APPLICATION_ID,'APP_VERSION_MARKER_CHANGED');
+      super({...config,connectionTimeoutMillis:20000,statement_timeout:30000});
     }
   }
   Module._resolveFilename=function(request,parent,...args){return originalResolve.call(this,request.startsWith('@/')?path.join(root,request.slice(2)):request,parent,...args);};
@@ -56,7 +61,36 @@ function loadAdapters(env,database){
   };
 }
 
+async function runGateDelta({client,adapters,track,token,checks}){
+  // The control session uses the same owner credentials without the new app
+  // marker. A statement-level guard must reject even a zero-row operation.
+  await assert.rejects(()=>client.query('UPDATE public.llantas SET stock=stock WHERE id=$1',[token]),/aplicación migrada y activada/);
+  checks.push('existing_owner_without_version_marker_blocked_while_gate_active');
+  const {inventory,sales}=adapters;
+  const tire=track('tires',await inventory.crearLlantaSistema({marca:token,modelo:'Version gate last unit',medida:'215/60R16',
+    precioCompra:100,precioVenta:2380,bodega:'bodega-8',cantidad:1,proveedor:'COMERCIALIZADORA DE NEW TIRES',fechaRecepcion:'2026-10-11'}));
+  const stock=async()=>(await client.query('SELECT stock,stock_por_bodega FROM public.llantas WHERE id=$1',[tire.id])).rows[0];
+  assert.equal((await stock()).stock,1);assert.equal((await stock()).stock_por_bodega['bodega-8'],1);
+  const input={clienteNombre:token,items:[{tipo:'producto',id:tire.id,bodega:'bodega-8',cantidad:1}],metodoPago:'efectivo',generarFactura:false,sinGarantia:true};
+  const results=await Promise.allSettled([sales.crearVenta(input),sales.crearVenta(input)]);
+  const wins=results.filter(result=>result.status==='fulfilled'),losses=results.filter(result=>result.status==='rejected');
+  for(const result of wins)track('sales',result.value);
+  assert.equal(wins.length,1,'VERSION_GATE_DOUBLE_SALE');assert.equal(losses.length,1);assert.equal((await stock()).stock,0);
+  const sale=wins[0].value;
+  assert.deepEqual({subtotal:sale.subtotal,iva:sale.iva,total:sale.total},{subtotal:2051.72,iva:328.28,total:2380});
+  const stored=(await client.query(`SELECT subtotal::text,iva::text,total::text,iva_politica,
+    (SELECT sum(subtotal) FROM public.venta_items WHERE venta_id=v.id)::text AS items_total
+    FROM public.ventas v WHERE id=$1`,[sale.id])).rows[0];
+  assert.deepEqual(stored,{subtotal:'2051.72',iva:'328.28',total:'2380.00',iva_politica:'incluido_16',items_total:'2380.00'});
+  const fetched=await sales.obtenerVenta(sale.id);assert.equal(fetched.iva,328.28);assert.equal(fetched.total,2380);
+  const cancellations=await Promise.allSettled([sales.cancelarVenta(sale.id,'Version gate cancellation A'),sales.cancelarVenta(sale.id,'Version gate cancellation B')]);
+  assert.equal(cancellations.filter(result=>result.status==='fulfilled').length,1,'VERSION_GATE_DOUBLE_CANCELLATION');
+  assert.equal((await stock()).stock,1);assert.equal((await stock()).stock_por_bodega['bodega-8'],1);
+  checks.push('same_existing_owner_with_version_marker_persists_iva_and_atomic_concurrent_stock');
+}
+
 async function run(){
+  if(gateDelta)assert.ok(existingOwner&&appEnvArgument,'EXISTING_OWNER_GATE_ENV_REQUIRED');
   assert.ok(envArgument,'EXPLICIT_PRIVATE_RESTORE_ENV_REQUIRED');
   const envPath=path.resolve(root,envArgument);
   assert.ok(envPath.startsWith(privateRoot+path.sep)&&path.basename(envPath)==='restore.env','PRIVATE_RESTORE_ENV_REQUIRED');
@@ -84,7 +118,8 @@ async function run(){
   let adapters,before,stage='connect',cleaned=false,failure,gate;
   const checks=[],created={tires:[],products:[],services:[],sales:[]};
   const track=(kind,row)=>{assert.ok(row?.id,'CREATED_ROW_ID_REQUIRED');created[kind].push(row.id);return row;};
-  const report={database,rehearsalOnly:true,productionConnected:false,syntheticCustomer:token,checks};
+  const report={database,rehearsalOnly:true,productionConnected:false,syntheticCustomer:token,checks,
+    coverage:gateDelta?'existing_owner_version_gate_delta':'full_backend_integration',existingOwnerRequested:existingOwner};
   try{
     await client.connect();
     const identity=(await client.query('SELECT current_database() AS database,d.oid::text,pg_get_userbyid(d.datdba) AS owner FROM pg_database d WHERE d.datname=current_database()')).rows[0];
@@ -101,18 +136,28 @@ async function run(){
           has_database_privilege(current_user,current_database(),'CREATE') AS can_create
           FROM pg_database d JOIN pg_roles r ON r.rolname=current_user WHERE d.datname=current_database()`)).rows[0];
         assert.equal(permissions.database,database);assert.equal(permissions.oid,expected.oid);
-        for(const key of ['rolsuper','rolcreaterole','rolcreatedb','rolreplication','rolbypassrls','owner_member','can_create'])assert.equal(permissions[key],false,`APP_ROLE_EXCESS_PRIVILEGE_${key}`);
+        if(existingOwner){
+          assert.equal(permissions.role,'admmin','CONFIRMED_EXISTING_OWNER_REQUIRED');
+          assert.equal(permissions.role,expected.owner,'EXISTING_OWNER_MISMATCH');
+          assert.equal(permissions.owner_member,true);
+          report.guardScope='Version transition guard using the existing owner; no role creation or privilege changes.';
+        }else for(const key of ['rolsuper','rolcreaterole','rolcreatedb','rolreplication','rolbypassrls','owner_member','can_create'])assert.equal(permissions[key],false,`APP_ROLE_EXCESS_PRIVILEGE_${key}`);
         report.appRole=permissions;
       }finally{await appProbe.end().catch(()=>{});}
-      gate=(await client.query('SELECT singleton,status,app_role,application_sha256,activated_at::text AS activated_at FROM migration_new_tires.operation_state WHERE singleton')).rows[0];
+      gate=(await client.query('SELECT singleton,status,app_role,application_sha256,application_name,activated_at::text AS activated_at FROM migration_new_tires.operation_state WHERE singleton')).rows[0];
       assert.equal(gate?.status,'active','ISOLATED_APP_GATE_NOT_ACTIVE');
       assert.equal(gate.app_role,report.appRole.role,'ISOLATED_GATE_APP_ROLE_MISMATCH');
+      assert.equal(gate.application_name,appEnv.LLANTERA_APPLICATION_ID,'ISOLATED_GATE_APP_VERSION_MISMATCH');
       report.gate=await verifyWriteGate(client,{appRole:gate.app_role,applicationSha256:gate.application_sha256,expectedStatus:'active'});
     }else report.appRole={ownerCoverageOnly:true};
     report.runtime=await verifyRuntime(client);
     before=await databaseState(client);
     report.beforeHashes=Object.fromEntries(Object.entries(before.tables).map(([k,v])=>[k,{count:v.count,sha256:v.sha256}]));
     adapters=loadAdapters(appEnv,database);
+    if(gateDelta){
+      stage='existing_owner_version_gate_delta';
+      await runGateDelta({client,adapters,track,token,checks});
+    }else{
     const {inventory,sales,systemSales,products,services}=adapters;
     stage='authentic_data_reads';
     const all=await sales.obtenerVentas({incluirCanceladas:true});
@@ -199,6 +244,7 @@ async function run(){
     assert.equal((await stock(lastUnit.id)).stock,1,'DOUBLE_CANCELLATION_DUPLICATED_STOCK');
     assert.equal((await stock(lastUnit.id)).stock_por_bodega['bodega-8'],1);
     checks.push('real_concurrent_last_unit_allows_one_sale_and_double_cancel_restores_once');
+    }
     report.verified=true;
   }catch(error){failure=error;report.verified=false;report.failedStage=stage;report.error=error.code||error.name;report.message=String(error.message).replace(/postgres(?:ql)?:\/\/\S+/gi,'[connection omitted]');}
   finally{
@@ -218,11 +264,12 @@ async function run(){
         for(const id of ids)assert.equal((await client.query('SELECT cliente_nombre FROM public.ventas WHERE id=$1',[id])).rows[0]?.cliente_nombre,token,'CLEANUP_SALE_MARKER_MISMATCH');
         await client.query('BEGIN');
         if(gate){
-          const locked=(await client.query('SELECT singleton,status,app_role,application_sha256,activated_at::text AS activated_at FROM migration_new_tires.operation_state WHERE singleton FOR UPDATE')).rows[0];
+          const locked=(await client.query('SELECT singleton,status,app_role,application_sha256,application_name,activated_at::text AS activated_at FROM migration_new_tires.operation_state WHERE singleton FOR UPDATE')).rows[0];
           assert.deepEqual(locked,gate,'ISOLATED_GATE_CHANGED_DURING_TEST');
-          // Local to this owner transaction: concurrent app sessions continue
-          // seeing their original committed role until the exact state returns.
-          await client.query('UPDATE migration_new_tires.operation_state SET app_role=session_user WHERE singleton');
+          await client.query("SELECT set_config('application_name',$1,true)",[gate.application_name]);
+          // The current policy keeps the existing owner and never edits the
+          // gate. The branch supports old limited-role rehearsal evidence only.
+          if(!existingOwner)await client.query('UPDATE migration_new_tires.operation_state SET app_role=session_user WHERE singleton');
         }
         await client.query('DELETE FROM public.venta_items WHERE venta_id=ANY($1::text[])',[ids]);
         await client.query('DELETE FROM public.movimientos_bodega WHERE llanta_id=ANY($1::text[]) OR venta_id=ANY($2::text[])',[created.tires,ids]);
@@ -233,8 +280,9 @@ async function run(){
           assert.equal(mismatch,0,'CLEANUP_CATALOG_MARKER_MISMATCH');
           await client.query(`DELETE FROM public.${table} WHERE id=ANY($1::text[])`,[created[key]]);
         }
-        if(gate)await client.query('UPDATE migration_new_tires.operation_state SET app_role=$1 WHERE singleton',[gate.app_role]);
+        if(gate&&!existingOwner)await client.query('UPDATE migration_new_tires.operation_state SET app_role=$1 WHERE singleton',[gate.app_role]);
         await client.query('COMMIT');
+        assert.equal((await client.query("SELECT current_setting('application_name') AS marker")).rows[0].marker,'published-app-integration-control','CLEANUP_APPLICATION_MARKER_LEAKED');
         const after=await databaseState(client);
         for(const[name,table]of Object.entries(before.tables)){
           if(name==='public.app_metadata')continue;

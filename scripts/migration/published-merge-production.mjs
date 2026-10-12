@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { sha256, qi } from './snapshot.mjs';
 import { readVerifiedInputs,storeArchive,verifyArchive,validateBusinessState } from './published-merge-rehearsal.mjs';
 import { extensionsSql,insertMappedTable,compareMappedTable,verifyPublishedUnchanged,freezeArchive } from './published-merge-model.mjs';
-import { installRuntime,verifyRuntime,validateRuntimeRole,grantRuntimeRole,installWriteGate,verifyWriteGate } from './published-runtime.mjs';
+import { installRuntime,verifyRuntime,validateExistingRuntimeRole,applicationNameForArtifact,installWriteGate,verifyWriteGate } from './published-runtime.mjs';
 import { privateRoot,privatePath,json,save,assertFresh,assertIdentity,codeHashes,environment,connect,identity,readBackup,
   captureAndCompare,writeSnapshots,lockStateTables,assertNoOtherClients,readSupplement,storeSupplement,verifySupplement,
   commitOnce,assertBatchAbsent,probeBatch,documentHashes,verifyDocumentHashes,lockKey } from './published-production-support.mjs';
@@ -34,7 +34,7 @@ export async function prepareProduction(requestFile){
   const sourceBackup=await readBackup(request.sourceBackupDirectory),destinationBackup=await readBackup(request.destinationBackupDirectory);
   const supplement=await readSupplement(request.supplementalManifestFile),applicationSha256=await artifact(request.applicationArtifactFile);
   const stop=await cutoverEvidence(request.cutoverEvidenceFile);
-  assert.match(request.appRole,/^llaneteramulti_[a-z0-9_]+_app$/,'DEDICATED_APPLICATION_ROLE_REQUIRED');
+  assert.equal(request.appRole,'admmin','CONFIRMED_EXISTING_APPLICATION_ROLE_REQUIRED');
   const batchId=randomUUID(),directory=privatePath(path.join(privateRoot,'published-production-'+batchId));await fs.mkdir(directory,{recursive:false});
   let source,destination;
   try{
@@ -44,13 +44,13 @@ export async function prepareProduction(requestFile){
     assertIdentity(sourceIdentity,stop.evidence.source);assertIdentity(destinationIdentity,stop.evidence.destination);
     assert.notEqual(sourceIdentity.cluster_identifier+sourceIdentity.oid,destinationIdentity.cluster_identifier+destinationIdentity.oid,'SOURCE_AND_DESTINATION_ARE_IDENTICAL');
     await assertNoOtherClients(source);await assertNoOtherClients(destination);
-    await validateRuntimeRole(destination,request.appRole);
+    await validateExistingRuntimeRole(destination,request.appRole);
     assertBatchAbsent((await destination.query("SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='migration_new_tires') AS present")).rows[0].present);
     const sourceCapture=await captureAndCompare(source,sourceConnection,sourceBackup),destinationCapture=await captureAndCompare(destination,destinationConnection,destinationBackup);
     await writeSnapshots(directory,sourceCapture,destinationCapture);
     const snapshotFile=path.join(directory,'target-snapshot.json'),manifestFile=path.join(directory,'manifest.json');
     const input=await readVerifiedInputs(snapshotFile,manifestFile);
-    const plan={format:1,batchId,createdAt:new Date().toISOString(),sourceEnvFile:sourceConnection.envFile,destinationEnvFile:destinationConnection.envFile,
+    const plan={format:2,batchId,createdAt:new Date().toISOString(),sourceEnvFile:sourceConnection.envFile,destinationEnvFile:destinationConnection.envFile,
       sourceIdentity,destinationIdentity,sourceBackupDirectory:sourceBackup.directory,destinationBackupDirectory:destinationBackup.directory,
       sourceBackupFingerprints:sourceBackup.fingerprints,destinationBackupFingerprints:destinationBackup.fingerprints,
       snapshotFile,manifestFile,snapshotManifestSha256:sha256(await fs.readFile(manifestFile)),
@@ -58,6 +58,7 @@ export async function prepareProduction(requestFile){
       inputDocumentHashes:documentHashes(input.documents),
       supplementalManifestFile:supplement.manifestFile,supplementalManifestSha256:supplement.sha256,
       applicationArtifactFile:privatePath(request.applicationArtifactFile),applicationSha256,appRole:request.appRole,
+      rolePolicy:'reuse-existing-owner-with-version-gate',applicationName:applicationNameForArtifact(applicationSha256),
       cutoverEvidenceFile:privatePath(request.cutoverEvidenceFile),cutoverEvidenceSha256:stop.sha256,codeHashes:await codeHashes(),
       sourceMustRemainStopped:true,destinationStartsBlocked:true,sourceDataWillNotBeModified:true};
     await save(path.join(directory,'plan.json'),plan);await source.query('ROLLBACK');await destination.query('ROLLBACK');
@@ -68,7 +69,9 @@ export async function prepareProduction(requestFile){
 
 export async function readPlan(planFile,approvedHash,{fresh=true}={}){
   const bytes=await fs.readFile(privatePath(planFile));assert.match(approvedHash??'',/^[a-f0-9]{64}$/,'EXPLICIT_REVIEWED_PLAN_HASH_REQUIRED');
-  assert.equal(sha256(bytes),approvedHash,'APPROVED_PLAN_HASH_MISMATCH');const plan=JSON.parse(bytes);assert.equal(plan.format,1,'UNKNOWN_PLAN_FORMAT');
+  assert.equal(sha256(bytes),approvedHash,'APPROVED_PLAN_HASH_MISMATCH');const plan=JSON.parse(bytes);assert.equal(plan.format,2,'UNKNOWN_PLAN_FORMAT');
+  assert.equal(plan.appRole,'admmin','CONFIRMED_EXISTING_APPLICATION_ROLE_REQUIRED');assert.equal(plan.rolePolicy,'reuse-existing-owner-with-version-gate');
+  assert.equal(plan.applicationName,applicationNameForArtifact(plan.applicationSha256),'APPLICATION_VERSION_MARKER_MISMATCH');
   assert.equal(plan.sourceDataWillNotBeModified,true);assert.equal(plan.destinationStartsBlocked,true);assert.equal(plan.sourceMustRemainStopped,true);
   if(fresh)assertFresh(plan.createdAt);assert.deepEqual(await codeHashes(),plan.codeHashes,'MIGRATION_CODE_CHANGED_REPREPARE_PACKAGE');
   assert.equal(await artifact(plan.applicationArtifactFile),plan.applicationSha256,'APPLICATION_ARTIFACT_CHANGED');
@@ -98,8 +101,8 @@ async function verifyApplied(client,context,{allowActive=false}={}){
   const frozen=(await client.query(`SELECT count(*)::integer AS n FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='migration_new_tires' AND t.tgname IN ('reject_archive_row_changes','reject_archive_truncate') AND t.tgenabled='O'`)).rows[0].n;
   assert.equal(frozen,18,'IMMUTABLE_ARCHIVE_GUARDS_MISSING');
-  const historicalGuards=(await client.query("SELECT count(*)::integer AS n FROM pg_trigger WHERE tgname IN ('protect_new_tires_sales','protect_new_tires_items') AND tgenabled='O'")).rows[0].n;
-  assert.equal(historicalGuards,2,'HISTORICAL_GUARDS_MISSING');
+  const historicalGuards=(await client.query("SELECT count(*)::integer AS n FROM pg_trigger WHERE tgname IN ('protect_new_tires_sales','protect_new_tires_items','protect_new_tires_sales_truncate','protect_new_tires_items_truncate') AND tgenabled='O'")).rows[0].n;
+  assert.equal(historicalGuards,4,'HISTORICAL_GUARDS_MISSING');
   let business,published;
   if(actualStatus==='blocked'){
     for(const table of ['bodegas','llantas','ventas','venta_items','movimientos_bodega'])await compareMappedTable(client,table);
@@ -119,7 +122,7 @@ export async function applyProduction(planFile,approvedHash){
     stage='lock_and_verify_fresh_data';await begin(source);await begin(destination);
     await destination.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[lockKey]);
     await assertNoOtherClients(source);await assertNoOtherClients(destination);
-    await validateRuntimeRole(destination,plan.appRole);
+    await validateExistingRuntimeRole(destination,plan.appRole);
     assertBatchAbsent((await destination.query("SELECT EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='migration_new_tires') AS present")).rows[0].present);
     await lockStateTables(source,sourceBackup.state);await lockStateTables(destination,destinationBackup.state);
     await captureAndCompare(source,sourceConnection,sourceBackup);await captureAndCompare(destination,destinationConnection,destinationBackup);
@@ -140,7 +143,7 @@ export async function applyProduction(planFile,approvedHash){
     stage='install_runtime_guards_and_block_old_writers';await installRuntime(destination);
     await freezeArchive(destination,['runtime_setup','supplemental_files','production_manifest']);
     await installWriteGate(destination,{appRole:plan.appRole,applicationSha256:plan.applicationSha256});
-    const role=await grantRuntimeRole(destination,plan.appRole);
+    const role=await validateExistingRuntimeRole(destination,plan.appRole);
     stage='verify_before_commit';const verified=await verifyApplied(destination,context);
     const sequence=(await destination.query('SELECT last_value::text,is_called FROM public.venta_items_id_seq')).rows[0];
     const max=(await destination.query('SELECT max(id)::text AS id FROM public.venta_items')).rows[0].id;
@@ -180,15 +183,16 @@ export async function productionStatus(planFile,approvedHash){
 export async function activateProduction(planFile,approvedHash,deploymentProofFile,appEnvFile){
   const context=await readPlan(planFile,approvedHash,{fresh:false}),{plan,directory}=context;
   const proof=await json(privatePath(deploymentProofFile));assertFresh(proof.checkedAt);
-  for(const flag of ['reviewed','oldWritersStopped','newApplicationReadOnlyChecksPassed'])assert.equal(proof[flag],true,'DEPLOYMENT_VERIFICATION_REQUIRED');
-  assert.equal(proof.batchId,plan.batchId);assert.equal(proof.planSha256,approvedHash);assert.equal(proof.applicationSha256,plan.applicationSha256);assert.equal(proof.appRole,plan.appRole);assertIdentity(proof.databaseIdentity,plan.destinationIdentity);
+  for(const flag of ['reviewed','oldWritersStopped','newApplicationReadOnlyChecksPassed','deployedArtifactVerified','deployedEnvironmentVerified'])assert.equal(proof[flag],true,'DEPLOYMENT_VERIFICATION_REQUIRED');
+  assert.equal(proof.batchId,plan.batchId);assert.equal(proof.planSha256,approvedHash);assert.equal(proof.applicationSha256,plan.applicationSha256);assert.equal(proof.applicationName,plan.applicationName);assert.equal(proof.appRole,plan.appRole);assertIdentity(proof.databaseIdentity,plan.destinationIdentity);
   const appConnection=await environment(appEnvFile,'postgres');assert.equal(decodeURIComponent(appConnection.url.username),plan.appRole,'WRONG_APPLICATION_LOGIN');
   assert.equal(appConnection.endpoint.host,plan.destinationIdentity.host);assert.equal(appConnection.endpoint.port,plan.destinationIdentity.port);
+  assert.equal(appConnection.env.LLANTERA_APPLICATION_ID,plan.applicationName,'DEPLOYED_APPLICATION_MARKER_MISMATCH');
   let app,client,commitAttempted=false,committed=false;
   try{
-    app=await connect(appConnection,true);await begin(app,true);
-    const actual=(await app.query(`SELECT session_user AS role,current_database() AS database,d.oid::text AS oid FROM pg_database d WHERE datname=current_database()`)).rows[0];
-    assert.deepEqual(actual,{role:plan.appRole,database:'postgres',oid:plan.destinationIdentity.oid},'APPLICATION_CONNECTION_IDENTITY_MISMATCH');
+    app=await connect(appConnection,true,{applicationName:appConnection.env.LLANTERA_APPLICATION_ID});await begin(app,true);
+    const actual=(await app.query(`SELECT session_user AS role,current_database() AS database,d.oid::text AS oid,current_setting('application_name') AS application_name FROM pg_database d WHERE datname=current_database()`)).rows[0];
+    assert.deepEqual(actual,{role:plan.appRole,database:'postgres',oid:plan.destinationIdentity.oid,application_name:plan.applicationName},'APPLICATION_CONNECTION_IDENTITY_MISMATCH');
     await app.query('SELECT id FROM public.ventas LIMIT 1');await app.query('SELECT name FROM migration_new_tires.supplemental_files LIMIT 1');await app.query('ROLLBACK');await close(app);app=null;
     const connection=await environment(plan.destinationEnvFile,'postgres');client=await connect(connection,false);assertIdentity(await identity(client,connection),plan.destinationIdentity);
     await begin(client);await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[lockKey]);

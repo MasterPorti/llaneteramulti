@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { assertFresh,assertIdentity,assertBatchAbsent,commitOnce,probeBatch,privateRoot,readSupplement,readBackup,storeSupplement,verifySupplement,documentHashes,verifyDocumentHashes,toSnapshot } from './published-production-support.mjs';
+import { applicationNameForArtifact,validateExistingRuntimeRole } from './published-runtime.mjs';
 
 test('fresh preparation rejects stale and future packages',()=>{
   const now=Date.parse('2026-10-12T10:00:00Z');assertFresh('2026-10-12T09:30:00Z',now);
@@ -12,6 +13,16 @@ test('fresh preparation rejects stale and future packages',()=>{
 test('identity must match endpoint, cluster, database, OID, and owner',()=>{
   const expected={host:'example.invalid',port:'5432',database:'postgres',oid:'123',owner:'owner',cluster_identifier:'456'};
   assertIdentity({...expected},expected);for(const key of Object.keys(expected))assert.throws(()=>assertIdentity({...expected,[key]:'different'},expected),/EXACT_SERVER_DATABASE_IDENTITY_MISMATCH/);
+});
+test('application version marker is exact, deterministic and below PostgreSQL 63-byte limit',()=>{
+  const hash='ab'.repeat(32),marker=applicationNameForArtifact(hash);assert.equal(marker,'llm:'+hash.slice(0,48));assert.equal(Buffer.byteLength(marker),52);
+  assert.throws(()=>applicationNameForArtifact('bad'),/VERIFIED_APPLICATION_ARTIFACT_REQUIRED/);
+  assert.notEqual(applicationNameForArtifact('cd'+hash.slice(2)),marker);
+});
+test('existing admmin is validated without grants, revokes, or role changes',async()=>{
+  const queries=[],client={query:async(sql,params)=>{queries.push(sql);assert.deepEqual(params,['admmin']);return{rows:[{rolname:'admmin',rolcanlogin:true,owns_database:true,is_session_user:true,rolsuper:true}]};}};
+  const result=await validateExistingRuntimeRole(client,'admmin');assert.equal(result.grantsPerformed,false);assert.equal(result.existingPrivilegesUnchanged,true);
+  assert.ok(queries.every(sql=>sql.startsWith('SELECT')));await assert.rejects(()=>validateExistingRuntimeRole(client,'new_role'),/CONFIRMED_EXISTING_APPLICATION_ROLE_REQUIRED/);
 });
 test('a repeated or unknown migration schema cannot be applied',()=>{
   assertBatchAbsent(false);assert.throws(()=>assertBatchAbsent(true),/MIGRATION_SCHEMA_ALREADY_PRESENT/);

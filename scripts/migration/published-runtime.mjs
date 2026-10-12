@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { qi } from './snapshot.mjs';
 
 export const runtimeVersion=1;
+export function applicationNameForArtifact(applicationSha256){
+  assert.match(applicationSha256,/^[a-f0-9]{64}$/,'VERIFIED_APPLICATION_ARTIFACT_REQUIRED');
+  return 'llm:'+applicationSha256.slice(0,48);
+}
 export const runtimeSql=`
 ALTER TABLE public.productos ADD COLUMN precio_compra numeric(10,2);
 ALTER TABLE public.movimientos_bodega ADD COLUMN tipo text, ADD COLUMN motivo text, ADD COLUMN venta_id varchar(50);
@@ -141,21 +145,34 @@ export async function grantRuntimeRole(client,role){
   return {role,limited:true,canAlterArchive:false};
 }
 
+// The user explicitly chose the existing database owner. This performs SELECTs
+// only and neither grants privileges nor changes the existing role attributes.
+export async function validateExistingRuntimeRole(client,role){
+  assert.equal(role,'admmin','CONFIRMED_EXISTING_APPLICATION_ROLE_REQUIRED');
+  const actual=(await client.query(`SELECT r.rolname,r.rolcanlogin,r.rolsuper,r.rolcreatedb,r.rolcreaterole,r.rolbypassrls,
+    r.oid=(SELECT datdba FROM pg_database WHERE datname=current_database()) AS owns_database,
+    session_user=r.rolname AS is_session_user FROM pg_roles r WHERE rolname=$1`,[role])).rows[0];
+  assert.ok(actual&&actual.rolcanlogin&&actual.owns_database&&actual.is_session_user,'EXISTING_OWNER_ROLE_IDENTITY_MISMATCH');
+  return {role,existingPrivilegesUnchanged:true,grantsPerformed:false,attributes:actual,
+    guardScope:'Version transition guard; the existing owner retains administrative powers.'};
+}
+
 export async function installWriteGate(client,{appRole,applicationSha256}){
-  assert.match(appRole,/^llaneteramulti_[a-z0-9_]+_app$/,'DEDICATED_APPLICATION_ROLE_REQUIRED');
-  assert.match(applicationSha256,/^[a-f0-9]{64}$/,'VERIFIED_APPLICATION_ARTIFACT_REQUIRED');
+  assert.equal(appRole,'admmin','CONFIRMED_EXISTING_APPLICATION_ROLE_REQUIRED');
+  const applicationName=applicationNameForArtifact(applicationSha256);
   await client.query(`CREATE TABLE migration_new_tires.operation_state(
     singleton boolean PRIMARY KEY DEFAULT true CHECK(singleton),status text NOT NULL CHECK(status IN ('blocked','active')),
-    app_role text NOT NULL,application_sha256 text NOT NULL,activated_at timestamptz);
+    app_role text NOT NULL,application_sha256 text NOT NULL,application_name text NOT NULL,activated_at timestamptz);
     CREATE FUNCTION migration_new_tires.enforce_writer_gate() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
     SET search_path=pg_catalog AS $$ DECLARE gate record; BEGIN
       SELECT * INTO gate FROM migration_new_tires.operation_state WHERE singleton;
-      IF gate.status IS DISTINCT FROM 'active' OR session_user IS DISTINCT FROM gate.app_role THEN
+      IF gate.status IS DISTINCT FROM 'active' OR session_user IS DISTINCT FROM gate.app_role OR
+        current_setting('application_name',true) IS DISTINCT FROM gate.application_name THEN
         RAISE EXCEPTION 'La escritura requiere la aplicación migrada y activada';
       END IF;
       RETURN NULL;
     END $$;`);
-  await client.query("INSERT INTO migration_new_tires.operation_state(singleton,status,app_role,application_sha256) VALUES(true,'blocked',$1,$2)",[appRole,applicationSha256]);
+  await client.query("INSERT INTO migration_new_tires.operation_state(singleton,status,app_role,application_sha256,application_name) VALUES(true,'blocked',$1,$2,$3)",[appRole,applicationSha256,applicationName]);
   for(const table of ['llantas','productos','servicios','ventas','venta_items','movimientos_bodega','bodegas','app_metadata']){
     await client.query(`CREATE TRIGGER enforce_published_writer BEFORE INSERT OR UPDATE OR DELETE OR TRUNCATE ON public.${qi(table)}
       FOR EACH STATEMENT EXECUTE FUNCTION migration_new_tires.enforce_writer_gate()`);
@@ -163,8 +180,9 @@ export async function installWriteGate(client,{appRole,applicationSha256}){
 }
 
 export async function verifyWriteGate(client,{appRole,applicationSha256,expectedStatus='blocked'}){
-  const state=(await client.query('SELECT status,app_role,application_sha256 FROM migration_new_tires.operation_state WHERE singleton')).rows[0];
-  assert.deepEqual(state,{status:expectedStatus,app_role:appRole,application_sha256:applicationSha256},'WRITER_GATE_STATE_MISMATCH');
+  const applicationName=applicationNameForArtifact(applicationSha256);
+  const state=(await client.query('SELECT status,app_role,application_sha256,application_name FROM migration_new_tires.operation_state WHERE singleton')).rows[0];
+  assert.deepEqual(state,{status:expectedStatus,app_role:appRole,application_sha256:applicationSha256,application_name:applicationName},'WRITER_GATE_STATE_MISMATCH');
   const count=(await client.query("SELECT count(*)::integer AS n FROM pg_trigger WHERE tgname='enforce_published_writer' AND tgenabled='O'")).rows[0].n;
-  assert.equal(count,8,'WRITER_GATE_TRIGGERS_MISSING');return{status:state.status,restrictedRole:appRole,enabledGuards:count};
+  assert.equal(count,8,'WRITER_GATE_TRIGGERS_MISSING');return{status:state.status,existingRole:appRole,requiredApplicationName:applicationName,enabledGuards:count};
 }

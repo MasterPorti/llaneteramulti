@@ -33,10 +33,10 @@ export async function environment(envFile,expectedDatabase){
   for(const key of url.searchParams.keys())assert.ok(['sslmode'].includes(key),'AMBIGUOUS_CONNECTION_PARAMETER');
   return {envFile:p,url,env,endpoint:{host:url.hostname,port:url.port||'5432',database:expectedDatabase}};
 }
-export async function connect(connection,readOnly){
+export async function connect(connection,readOnly,{applicationName='llantera-reviewed-published-migration'}={}){
   const client=new pg.Client({connectionString:connection.url.toString(),connectionTimeoutMillis:20000,statement_timeout:120000,
     ssl:connection.env.DB_REQUIRE_SSL==='true'?{rejectUnauthorized:connection.env.DB_SSL_REJECT_UNAUTHORIZED!=='false'}:undefined,
-    application_name:'llantera-reviewed-published-migration',options:`-c timezone=UTC${readOnly?' -c default_transaction_read_only=on':''}`});
+    application_name:applicationName,options:`-c timezone=UTC${readOnly?' -c default_transaction_read_only=on':''}`});
   await client.connect();return client;
 }
 export async function identity(client,connection){

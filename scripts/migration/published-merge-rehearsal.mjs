@@ -185,6 +185,7 @@ async function verifyProtections(client,input) {
   await rollbackTest(()=>assert.rejects(()=>client.query('UPDATE public.ventas SET total=total WHERE id=$1',[historicalId]),error=>error.code==='P0001'));
   await rollbackTest(()=>assert.rejects(()=>client.query('UPDATE public.venta_items SET subtotal=subtotal WHERE venta_id=$1',[historicalId]),error=>error.code==='P0001'));
   await rollbackTest(()=>assert.rejects(()=>client.query('DELETE FROM migration_new_tires.source_rows WHERE row_ordinal=1'),error=>error.code==='P0001'));
+  await rollbackTest(()=>assert.rejects(()=>client.query('TRUNCATE public.ventas,public.venta_items,migration_new_tires.imported_sales,migration_new_tires.item_context'),error=>error.code==='P0001'));
   await rollbackTest(()=>assert.rejects(()=>client.query(`INSERT INTO public.ventas(id,folio,cliente_nombre,subtotal,iva,total,metodo_pago,fecha_venta,iva_politica)
     VALUES('rehearsal-constraint','REHEARSAL-CHECK','Prueba temporal',116,0,116,'efectivo',now(),'incluido_16')`),error=>error.code==='23514'&&error.constraint==='new_tires_included_iva'));
   await rollbackTest(async()=>{
@@ -282,9 +283,9 @@ export async function runRehearsal({envFile,snapshotFile=path.join(auditRoot,'ta
     await verifyArchive(client,input);await verifyPublishedUnchanged(client,input.published);await validateBusinessState(client);
     const guards=(await client.query(`SELECT n.nspname AS schema,c.relname AS relation,t.tgname,t.tgenabled
       FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE NOT t.tgisinternal AND (n.nspname='migration_new_tires' OR t.tgname IN ('protect_new_tires_sales','protect_new_tires_items'))
+      WHERE NOT t.tgisinternal AND (n.nspname='migration_new_tires' OR t.tgname IN ('protect_new_tires_sales','protect_new_tires_items','protect_new_tires_sales_truncate','protect_new_tires_items_truncate'))
       ORDER BY n.nspname,c.relname,t.tgname`)).rows;
-    assert.equal(guards.length,14,'EXPECTED_IMMUTABILITY_GUARDS_MISSING');
+    assert.equal(guards.length,16,'EXPECTED_IMMUTABILITY_GUARDS_MISSING');
     assert.ok(guards.every(g=>g.tgenabled==='O'),'IMMUTABILITY_GUARD_DISABLED');
     await client.query('ROLLBACK');
     report.postCommit={verified:true,readOnly:true,mappedFieldsMatch:true,publishedRowsUnchanged:true,archivesExact:true,enabledGuards:guards.length};

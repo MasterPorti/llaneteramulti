@@ -8,7 +8,7 @@ types.setTypeParser(1114, (value) => value.replace(' ', 'T'));
 types.setTypeParser(1184, (value) => new Date(value).toISOString());
 
 declare global {
-  var _llanteraPg: { pool: Pool; url: string; expected: string | undefined } | undefined;
+  var _llanteraPg: { pool: Pool; url: string; expected: string; applicationId: string } | undefined;
 }
 
 function getPool(): Pool {
@@ -18,12 +18,18 @@ function getPool(): Pool {
   const expected = process.env.LLANTERA_EXPECTED_DATABASE;
   if (!expected) throw new Error('Falta LLANTERA_EXPECTED_DATABASE para proteger la base de origen.');
   if (database !== expected) throw new Error('DATABASE_URL no apunta a la base confirmada para llaneteramulti.');
-  if (!global._llanteraPg || global._llanteraPg.url !== url || global._llanteraPg.expected !== expected) {
+  const applicationId = process.env.LLANTERA_APPLICATION_ID;
+  // 52 ASCII bytes: PostgreSQL must not truncate the application_name marker.
+  if (!applicationId || !/^llm:[a-f0-9]{48}$/.test(applicationId)) {
+    throw new Error('Falta una LLANTERA_APPLICATION_ID válida para identificar la versión revisada de la aplicación.');
+  }
+  if (!global._llanteraPg || global._llanteraPg.url !== url || global._llanteraPg.expected !== expected || global._llanteraPg.applicationId !== applicationId) {
     const previous = global._llanteraPg;
     global._llanteraPg = {
-      url, expected,
+      url, expected, applicationId,
       pool: new Pool({
         connectionString: url,
+        application_name: applicationId,
         options: '-c timezone=America/Mexico_City -c search_path=public',
         ssl: process.env.DB_REQUIRE_SSL === 'true' ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' } : undefined,
       }),
@@ -36,9 +42,10 @@ function getPool(): Pool {
 async function getClient(): Promise<PoolClient> {
   const client = await getPool().connect();
   try {
-    const result = await client.query<{ database: string; runtime: string | null }>(
-      "SELECT current_database() AS database,to_regclass('migration_new_tires.runtime_setup')::text AS runtime");
+    const result = await client.query<{ database: string; runtime: string | null; application_id: string }>(
+      "SELECT current_database() AS database,to_regclass('migration_new_tires.runtime_setup')::text AS runtime,current_setting('application_name') AS application_id");
     if (result.rows[0].database !== process.env.LLANTERA_EXPECTED_DATABASE) throw new Error('La conexión no corresponde a la base de llaneteramulti.');
+    if (result.rows[0].application_id !== process.env.LLANTERA_APPLICATION_ID) throw new Error('La sesión PostgreSQL no identifica la versión revisada de la aplicación.');
     // A matching database name is insufficient: the source and published server
     // can both call their database postgres. No adapter may write before setup.
     if (!result.rows[0].runtime) throw new Error('La base conectada todavía no tiene instalada la migración y su esquema operativo verificado.');

@@ -122,8 +122,8 @@ export function VentasTable({ ventas }: VentasTableProps) {
     },
     {
       key: 'items',
-      header: 'Productos',
-      render: (item: Venta) => <span>{item.items.length} producto(s)</span>,
+      header: 'Partidas',
+      render: (item: Venta) => <span>{item.items.length} partida(s)</span>,
     },
     {
       key: 'subtotal',

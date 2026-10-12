@@ -26,15 +26,18 @@ La base definitiva seleccionada se llama `postgres`. El nombre por sí solo no i
 
 | Variable | Uso |
 | --- | --- |
-| `DATABASE_URL` | Endpoint aprobado y credenciales del rol exclusivo de la aplicación. En producción apunta a `/postgres`; para desarrollo, al clon preparado. |
+| `DATABASE_URL` | Endpoint aprobado y credenciales del usuario existente `admmin`. En producción apunta a `/postgres`; para desarrollo, al clon preparado. |
 | `LLANTERA_EXPECTED_DATABASE` | Obligatoria. `postgres` en el destino definitivo; el nombre exacto del clon en desarrollo. Se compara con la URL y con `current_database()`. |
+| `LLANTERA_APPLICATION_ID` | Obligatoria. Valor `applicationName` del plan: `llm:` seguido por los primeros 48 caracteres hexadecimales del SHA-256 del artefacto revisado. El pool lo envía como `application_name` y comprueba la marca recibida por PostgreSQL. |
 | `LLANTERA_SUPPLIER` | `COMERCIALIZADORA DE NEW TIRES`, proveedor permitido al crear o editar llantas. No limita el catálogo de servicios y productos ya publicado. |
 | `DB_REQUIRE_SSL` | `true` cuando el servidor requiere TLS. Debe corresponder a la configuración real del endpoint. |
 | `DB_SSL_REJECT_UNAUTHORIZED` | Mantener `true` para validar el certificado cuando se use TLS. |
 
 Antes de consultar datos, `lib/db.ts` exige `migration_new_tires.runtime_setup` con versión `1`. Una base sin esa instalación se rechaza. El arranque de la aplicación no crea tablas, no carga servicios de ejemplo y no migra datos automáticamente.
 
-El proceso web debe usar el rol limitado `llaneteramulti_published_app`, sin privilegios de superusuario, creación de bases/roles, propiedad de objetos ni membresías adicionales. El administrador prepara ese rol por separado; el runner comprueba sus restricciones y concede únicamente los permisos operativos necesarios. Las credenciales del propietario de la base se reservan para las herramientas revisadas de migración.
+Por decisión del propietario se reutiliza el usuario existente `admmin`; este corte no crea usuarios ni cambia sus permisos. El control de escritura exige el usuario esperado, el estado activado y la marca exacta de la versión. La aplicación falla al conectar si falta `LLANTERA_APPLICATION_ID`, su formato no es válido o la sesión recibe otra marca. Cambiar la marca crea un pool nuevo.
+
+La marca identifica el artefacto y evita escrituras accidentales del backend anterior, que no la envía. No es una contraseña ni restringe los privilegios del propietario: ese usuario puede cambiar parámetros de sesión o administrar los controles de la base. Por ello se detienen los procesos anteriores y se comprueban el artefacto y las variables del contenedor real antes de activar. Los controles de historial, IVA y existencias permanecen habilitados.
 
 ## Datos que debe conservar el corte
 
@@ -78,10 +81,10 @@ El runner específico es `scripts/migration/published-merge-production.mjs`. Las
 
 El corte utiliza cuatro modos:
 
-1. **`prepare`**: requiere respaldos nativos recientes de ambas bases con restauración verificada, evidencia de escritores detenidos, los documentos y JSON autenticados, el artefacto de aplicación y un rol limitado ya existente. Consulta las bases en solo lectura y genera `plan.json` y su SHA-256. El plan fija identidades de servidor/base, hashes de código, respaldos, todos los documentos y artefacto.
+1. **`prepare`**: requiere respaldos nativos recientes de ambas bases con restauración verificada, evidencia de escritores detenidos, los documentos y JSON autenticados, el artefacto de aplicación y la identidad del usuario existente. Consulta las bases en solo lectura y genera `plan.json` y su SHA-256. El plan fija identidades de servidor/base, hashes de código, respaldos, todos los documentos, artefacto y marca de versión.
 2. **`apply`**: exige la ruta del plan y su hash revisado. Revalida el paquete y el estado vivo, bloquea tablas e incorpora el lote sin sustituir los registros publicados. Verifica correspondencia de filas, archivos, relaciones y secuencias antes de un único COMMIT. El destino queda con escrituras **bloqueadas**, aunque la importación termine correctamente.
 3. **`status`**: consulta el marcador persistido del lote y su estado. Es la vía de recuperación si una desconexión deja incierto el resultado del COMMIT; no repetir `apply` para averiguarlo. Un intento revertido puede haber consumido valores de la secuencia de partidas, por lo que requiere un paquete nuevo antes de reintentar.
-4. **`activate`**: exige el mismo plan, evidencia revisada del artefacto realmente desplegado, pruebas de lectura de la aplicación y conexión con el rol limitado. Activa la escritura únicamente para ese rol. Las conexiones del backend anterior quedan bloqueadas por los controles de escritura.
+4. **`activate`**: exige el mismo plan, evidencia revisada del artefacto realmente desplegado, pruebas de lectura y conexión con `admmin` y la marca exacta de versión. Activa la escritura para esa combinación de usuario y marca. Las conexiones del backend anterior, que no llevan la marca aprobada, quedan bloqueadas por los controles de escritura.
 
 Los indicadores de los archivos de evidencia deben corresponder a comprobaciones reales: no sustituyen el paro de contenedores/procesos, la revisión del endpoint o la comprobación del artefacto desplegado. La fuente debe permanecer detenida después del corte. El runner no modifica sus filas ni realiza ventas sintéticas en producción.
 
@@ -102,6 +105,6 @@ npx tsc --noEmit
 npm run build
 ```
 
-Las suites unitarias comprueban selección, preservación, validaciones y mapeo del esquema normalizado. Las pruebas reales están en `scripts/migration/published-app-integration.test.mjs` y requieren un clon restaurado explícito; rechazan el nombre de la base productiva. Comprueban ventas, rollback, IVA, folios, stock concurrente, cancelación y conservación de los registros originales tras retirar los datos de prueba. Los contadores del clon pueden avanzar durante esas pruebas y se comprueba que sigan siendo coherentes; no se confunden con datos reales de ventas. Las pruebas de rol y controles de escritura se realizan también en el clon, con un rol temporal que se retira al terminar.
+Las suites unitarias comprueban selección, preservación, validaciones y mapeo del esquema normalizado. Las pruebas reales están en `scripts/migration/published-app-integration.test.mjs` y requieren un clon restaurado explícito; rechazan el nombre de la base productiva. Comprueban ventas, rollback, IVA, folios, stock concurrente, cancelación y conservación de los registros originales tras retirar los datos de prueba. Los contadores del clon pueden avanzar durante esas pruebas y se comprueba que sigan siendo coherentes; no se confunden con datos reales de ventas. Los controles de escritura deben probarse también en el clon con el mismo usuario: una sesión sin la marca de versión debe quedar bloqueada y otra con la marca aprobada debe funcionar al activar.
 
 Un ensayo satisfactorio acredita el comportamiento en ese clon. La producción sólo se considera completada después de sus verificaciones y activación propias.
