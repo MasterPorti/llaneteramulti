@@ -2,6 +2,7 @@ import type { Venta } from '@/types';
 import type { SistemaVenta, SistemaVentaInput, GarantiaSistema, SistemaActionResponse } from '@/types/sistema';
 import { generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { getMexicoDateString } from '@/lib/utils/formatters';
+import { releasedOperationStatus } from '@/lib/shared-stock';
 import { crearVenta, obtenerVentas, obtenerVenta, obtenerVentaFolio, cancelarVenta, obtenerVentaPorGarantia, obtenerGarantiasActivas as consultarGarantias } from './ventas';
 
 /** Shared SQL records projected for the legacy tire-specific screens. */
@@ -24,7 +25,7 @@ export async function crearVentaSistema(input: SistemaVentaInput): Promise<Siste
       tipo: 'producto' as const, id: item.llantaId, bodega: item.bodega, cantidad: item.cantidad, precioCustom: item.precioCustom,
     })) }, 'sistema');
     return { success: true, data: adaptarVentaSistema(venta) };
-  } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Error al crear la venta.' }; }
+  } catch (error) { return { success: false, error: error instanceof Error ? error.message : 'Error al crear la venta.', operationStatus: releasedOperationStatus(error) }; }
 }
 
 export async function obtenerVentasSistema(filtros?: { desde?: string; hasta?: string; incluirCanceladas?: boolean }): Promise<SistemaVenta[]> {

@@ -30,9 +30,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { label: 'Inicio', href: '/inventario', icon: Home },
   { label: 'Inventario', href: '/inventario/inventario', icon: Package },
-  { label: 'Agregar Llanta', href: '/inventario/inventario/nuevo', icon: Plus, indent: true },
   { label: 'Bodegas', href: '/inventario/bodegas', icon: Warehouse },
-  { label: 'Mover Stock', href: '/inventario/bodegas/mover', icon: ArrowRightLeft, indent: true },
   { label: 'Ventas', href: '/inventario/ventas', icon: ShoppingCart },
   { label: 'Nueva Venta', href: '/inventario/ventas/nueva', icon: Plus, indent: true },
   { label: 'Garantías', href: '/inventario/garantias', icon: Shield },

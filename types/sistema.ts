@@ -61,6 +61,8 @@ export interface SistemaVenta {
 
 // Input para crear venta
 export interface SistemaVentaInput {
+  /** Stable for retries of the same sale, including services and products. */
+  operacionId?: string;
   clienteNombre: string;
   clienteTelefono?: string;
   items: Array<{
@@ -101,4 +103,5 @@ export interface SistemaActionResponse<T = void> {
   success: boolean;
   data?: T;
   error?: string;
+  operationStatus?: 'released';
 }

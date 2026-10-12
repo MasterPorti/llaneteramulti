@@ -1,3 +1,4 @@
+import InventoryRouteRefresh from '@/app/_components/InventoryRouteRefresh';
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout";
@@ -5,8 +6,6 @@ import { Card, CardBody, CardHeader, Button, Badge } from "@/components/ui";
 import { obtenerLlanta } from "../actions";
 import { formatCurrency, formatDate } from "@/lib/utils/formatters";
 import { getTotalStock } from "@/types";
-import { EliminarLlantaButton } from "./EliminarLlantaButton";
-import { AjustarStockForm } from "./AjustarStockForm";
 import { BODEGAS } from "@/lib/config";
 
 interface Props {
@@ -26,6 +25,7 @@ export default async function LlantaDetallePage({ params }: Props) {
 
   return (
     <div>
+      <InventoryRouteRefresh />
       <PageHeader
         title={`${llanta.marca} ${llanta.modelo}`}
         subtitle={llanta.medida}
@@ -35,7 +35,6 @@ export default async function LlantaDetallePage({ params }: Props) {
         ]}
         actions={
           <div className="flex gap-2">
-            {llanta.activo && <Link href={`/llantas/${id}/editar`}><Button variant="secondary">Editar</Button></Link>}
             {llanta.activo && totalStock > 0 && (
               <Link href={`/ventas/llantas?llantaId=${id}`}>
                 <Button>Vender</Button>
@@ -119,8 +118,7 @@ export default async function LlantaDetallePage({ params }: Props) {
               <dl className="mb-4 space-y-2 text-sm">
                 {BODEGAS.map((bodega) => <div key={bodega.id} className="flex justify-between gap-3"><dt>{bodega.nombre}</dt><dd>{llanta.stockPorBodega[bodega.id] || 0}</dd></div>)}
               </dl>
-              {llanta.activo && <AjustarStockForm id={llanta.id} stockPorBodega={llanta.stockPorBodega} />}
-              {llanta.activo && <div className="mt-4"><EliminarLlantaButton id={id} /></div>}
+              <p className="text-sm text-gray-500">Las llantas se administran en Sistema Inventario.</p>
             </CardBody>
           </Card>
 

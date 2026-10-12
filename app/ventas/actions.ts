@@ -1,5 +1,6 @@
 'use server';
 
+import { releasedOperationStatus } from '@/lib/shared-stock';
 import { revalidatePath } from 'next/cache';
 import {
   obtenerVentas as getVentas,
@@ -56,6 +57,7 @@ export async function crearVenta(input: VentaInput): Promise<ActionResponse<Vent
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Error al crear venta',
+      operationStatus: releasedOperationStatus(error),
     };
   }
 }

@@ -1,0 +1,89 @@
+INVENTARIO COMPARTIDO: LLANTERA MULTI / SISTEMA BODEGA
+
+Sistema Bodega conserva el catálogo y las existencias de todos sus proveedores.
+Multi consulta únicamente COMERCIALIZADORA DE NEW TIRES, dominio sistema.
+Productos, servicios, ventas y tickets de Multi permanecen en DATABASE_URL.
+La conexión CENTRAL_INVENTORY_DATABASE_URL es adicional; no sustituye DATABASE_URL.
+
+INSTALACIÓN
+
+1. Respaldar ambas bases con pg_dump -Fc y comprobar su restauración en clones.
+   Ejecutar primero las pruebas contra esos clones, nunca contra producción.
+2. En la base central aplicar sistemaBodega/database/integrations/multi-inventory.sql.
+   Crear un rol LOGIN dedicado sin privilegios administrativos ni membresías.
+   Conceder exclusivamente:
+     GRANT CONNECT ON DATABASE postgres TO llantera_multi_stock;
+     GRANT USAGE ON SCHEMA multi_inventory TO llantera_multi_stock;
+     GRANT SELECT ON multi_inventory.llantas TO llantera_multi_stock;
+     GRANT EXECUTE ON FUNCTION multi_inventory.reserve_stock(text,jsonb),
+       multi_inventory.commit_stock(text), multi_inventory.release_stock(text),
+       multi_inventory.get_stock_operation(text) TO llantera_multi_stock;
+   Comprobar que ese rol no puede leer public.llantas ni otros proveedores.
+   No guardar contraseñas en Git. Usar el gestor de variables del despliegue.
+3. Preparar en Coolify el código revisado y la conexión central limitada.
+   Conservar la conexión local y las variables existentes. Preferir los nombres
+   internos de los contenedores en la red de Coolify para ambas conexiones.
+4. En una ventana de cambio, aplicar database/shared-inventory.sql a la base local.
+   Conserva filas históricas y bloquea escrituras al antiguo catálogo de llantas.
+   Una versión anterior de Multi deja de poder vender/ajustar llantas locales.
+   El rol local existente necesita permisos de lectura/escritura en
+   public.shared_stock_operations; no se requieren privilegios sobre el origen.
+5. Publicar la versión revisada. Si se cambia LLANTERA_APPLICATION_ID, actualizar
+   en la misma ventana migration_new_tires.operation_state.application_name
+   a la marca exacta y conservar status/app_role; no desactivar el writer gate.
+6. Verificar los catálogos publicados, proveedor, cantidades por bodega,
+   servicios/productos y ausencia de errores. No generar ventas ficticias en
+   producción. Confirmar que la tabla local de llantas no cambió durante el corte.
+
+OPERACIÓN Y RECUPERACIÓN
+
+Una venta de llantas guarda una intención local, reserva existencias centrales,
+guarda el ticket y los productos locales en una transacción y confirma la reserva.
+El identificador estable evita repetir descuentos al reintentar la misma venta.
+Las cancelaciones guardan primero su estado local y después devuelven la reserva.
+Las consultas de inventario/ventas concilian operaciones pendientes; las pantallas
+de inventario abiertas refrescan al recuperar foco y cada 20 segundos visibles.
+Si las aplicaciones permanecen cerradas, la conciliación se reanuda al consultarlas.
+Una reserva pendiente mantiene las unidades apartadas hasta completar o deshacer
+la operación. Nunca incrementar stock manualmente para compensarla.
+
+Consulta operativa local (sin datos personales):
+  SELECT id,status,sale_id,last_error,updated_at FROM public.shared_stock_operations
+  WHERE status NOT IN ('committed','released') ORDER BY updated_at;
+
+Consulta central:
+  SELECT operation_id,status,items,updated_at FROM multi_inventory.stock_operations
+  WHERE status='reserved' ORDER BY updated_at;
+
+Las ventas históricas importadas mantienen sus protecciones de solo lectura.
+No volver a ejecutar la migración antigua que retiraba NEW TIRES del origen.
+Las llantas inactivas conservan su estado; tener stock no las reactiva automáticamente.
+Las altas, cambios de proveedor/precio, ajustes y traslados se hacen en Sistema Bodega.
+
+El formulario conserva una venta pendiente al recargar la misma pestaña. El botón
+Reintentar confirmación recupera el mismo resultado sin repetir el descuento.
+Antes de cerrar la pestaña o iniciar otra venta desde otro navegador, confirmar
+el resultado pendiente o revisar el historial. No se promete recuperación del
+formulario después de borrar el almacenamiento del navegador.
+
+PRUEBAS
+
+  npm run test:shared-stock
+  npm run test:iva
+  npm run test:pdf
+  npm run build
+
+La suite PostgreSQL se activa con RUN_SHARED_POSTGRES_TESTS=1 y sus conexiones
+de pruebas documentadas en tests/shared-stock-postgres.test.mjs. Rechaza bases
+sin prefijo codex_shared_. La suite SQL está en el repositorio Sistema Bodega:
+database/integrations/test_multi_inventory.py; requiere dos bases scratch VACÍAS
+y las variables CENTRAL_TEST_DSN, MULTI_TEST_DSN y PGPASSFILE. Usa psycopg y
+comprueba operaciones concurrentes, aislamiento de proveedor y protecciones.
+
+REVERSIÓN
+
+No volver a publicar una versión que venda del catálogo local ni quitar sus
+protecciones. Ante un problema, detener las ventas de llantas, conservar los
+servicios/productos y revisar las operaciones pendientes. Una restauración completa
+requiere conciliar antes todas las ventas posteriores al respaldo para no perderlas
+ni devolver dos veces sus existencias. Guardar siempre un respaldo del estado actual.

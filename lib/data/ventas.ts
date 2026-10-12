@@ -6,7 +6,9 @@ import { calcularImportePartida, calcularImportesVenta } from '@/lib/utils/iva';
 import { CONFIG } from '@/lib/config';
 import { SISTEMA_CONFIG, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { validarBodega, validarCantidad } from './validation';
-import { guardarStock, registrarMovimiento, stockDeFila, validarTexto, type LlantaRow } from './normalizado';
+import { stockDeFila, validarTexto } from './normalizado';
+import { assertCentralSupplier, type StockReservation } from '@/lib/central-inventory';
+import { reconcileSharedStock, rejectUnstartedStockOperation, validateOperationId, withSharedStockSale, withSharedStockCancellation } from '@/lib/shared-stock';
 import type { ProductoRow } from './productos';
 import type { ServicioRow } from './servicios';
 
@@ -68,6 +70,7 @@ export function adaptarVenta(row: VentaRow): Venta {
   };
 }
 export async function obtenerVentas(filtros?: { fechaInicio?: string; fechaFin?: string; incluirCanceladas?: boolean }): Promise<Venta[]> {
+  await reconcileSharedStock();
   let sql = `${selectVenta} WHERE ${filtros?.incluirCanceladas ? 'true' : 'v.cancelada IS NOT TRUE'}`;
   const params: unknown[] = [];
   if (filtros?.fechaInicio) { params.push(filtros.fechaInicio); sql += ` AND v.fecha_venta >= $${params.length}::timestamptz`; }
@@ -95,10 +98,12 @@ async function adaptarDetalle(row: VentaRow): Promise<Venta> {
   return adaptarVenta(row);
 }
 export async function obtenerVenta(id: string): Promise<Venta | null> {
+  await reconcileSharedStock();
   const row = (await db.query<VentaRow>(`${selectDetalle} WHERE v.id=$1`, [id])).rows[0];
   return row ? adaptarDetalle(row) : null;
 }
 export async function obtenerVentaFolio(folio: string): Promise<Venta | null> {
+  await reconcileSharedStock();
   const row = (await db.query<VentaRow>(`${selectDetalle} WHERE v.folio=$1`, [folio])).rows[0];
   return row ? adaptarDetalle(row) : null;
 }
@@ -142,8 +147,7 @@ async function leerVenta(client: PoolClient, id: string): Promise<Venta> {
   if (!row) throw new Error('No se pudo recuperar la venta registrada.');
   return adaptarVenta(row);
 }
-/** dominioInterno is supplied by server wrappers, never read from submitted input. */
-export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 'sistema' = 'general'): Promise<Venta> {
+function prepareSale(input: VentaInput, dominioInterno: 'general' | 'sistema') {
   if (!['general', 'sistema'].includes(dominioInterno)) throw new Error('Dominio de ventas inválido.');
   if (input.generarFactura) throw new Error('La facturación electrónica no está integrada. Registra la venta sin generar una factura.');
   if (!Array.isArray(input.items) || !input.items.length) throw new Error('La venta debe contener al menos una partida.');
@@ -169,19 +173,31 @@ export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 
   if (!Number.isFinite(fechaFinDate.getTime()) || fechaFinDate.getUTCFullYear() > 9999) throw new Error('El plazo de garantía está fuera de rango.');
   const fechaFin = fechaFinDate.toISOString().slice(0, 10);
   const garantiaActiva = !input.sinGarantia && dias > 0;
-  return transaction(async (client) => {
+  return { config, dias, fechaInicio, fechaFin, garantiaActiva };
+}
+/** dominioInterno is supplied by server wrappers, never read from submitted input. */
+export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 'sistema' = 'general'): Promise<Venta> {
+  let prepared;
+  try {
+    prepared = prepareSale(input, dominioInterno);
+    validateOperationId(input.operacionId);
+  } catch (error) {
+    return rejectUnstartedStockOperation(input?.operacionId, { input, dominio: dominioInterno }, error);
+  }
+  const { config, dias, fechaInicio, fechaFin, garantiaActiva } = prepared;
+  const tireInput = input.items.filter((item) => item.tipo === 'producto');
+  const save = async (client: PoolClient, reservation?: StockReservation) => {
     const { folio, garantiaId } = await reservarFolio(client, dominioInterno, garantiaActiva, fechaInicio);
-    const llantaIds = [...new Set(input.items.filter((i) => i.tipo === 'producto').map((i) => i.id))].sort();
     const productoIds = [...new Set(input.items.filter((i) => i.tipo === 'catalogo').map((i) => i.id))].sort();
     const servicioIds = [...new Set(input.items.filter((i) => i.tipo === 'servicio').map((i) => i.id))].sort();
-    if (llantaIds.length) await client.query('SELECT id FROM llantas WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE', [llantaIds]);
     if (productoIds.length) await client.query('SELECT id FROM productos WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE', [productoIds]);
     if (servicioIds.length) await client.query('SELECT id FROM servicios WHERE id=ANY($1::text[]) ORDER BY id FOR SHARE', [servicioIds]);
     const items: VentaItem[] = [];
     for (const item of input.items) {
       if (item.tipo === 'producto') {
-        const llanta = (await client.query<LlantaRow>('SELECT * FROM llantas WHERE id=$1 AND dominio=$2 AND activo=true', [item.id, 'sistema'])).rows[0];
-        if (!llanta) throw new Error('Llanta no encontrada o inactiva.');
+        const llanta = reservation?.snapshots[item.id];
+        if (!llanta || llanta.activo !== true) throw new Error('Llanta no encontrada o inactiva en la reserva central.');
+        assertCentralSupplier(llanta);
         const bodega = bodegaPartida(item.bodega), stock = stockDeFila(llanta);
         if (stock[bodega] < item.cantidad) throw new Error(`Stock insuficiente para ${llanta.marca} ${llanta.modelo}. Disponible: ${stock[bodega]}`);
         const precioUnitario = calcularImportePartida(item.precioCustom ?? Number(llanta.precio_venta), 1);
@@ -190,8 +206,7 @@ export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 
           llantaSnapshot: { marca: llanta.marca, modelo: llanta.modelo, medida: llanta.medida, codigoAuxiliar: generarCodigoAuxiliar(llanta.medida) },
           cantidad: item.cantidad, precioUnitario, subtotal: calcularImportePartida(precioUnitario, item.cantidad),
           costoUnitario, costoSubtotal: calcularImportePartida(costoUnitario, item.cantidad) });
-        stock[bodega] -= item.cantidad;
-        await guardarStock(client, llanta.id, stock);
+
       } else if (item.tipo === 'catalogo') {
         const producto = (await client.query<ProductoRow>('SELECT * FROM productos WHERE id=$1 AND activo=true', [item.id])).rows[0];
         if (!producto) throw new Error('Producto de catálogo no encontrado o inactivo.');
@@ -221,46 +236,41 @@ export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 
     [id, folio, input.clienteNombre, input.clienteTelefono ?? null, subtotal, iva, total, input.metodoPago, garantiaActiva,
       fechaInicio, fechaFin, dias, input.sinGarantia ? 'Sin garantía' : input.condicionesGarantia ?? config.condicionesGarantiaPredeterminado,
       garantiaId, dominioInterno]);
+    if (reservation) await client.query('UPDATE public.shared_stock_operations SET sale_id=$2,updated_at=NOW() WHERE id=$1', [input.operacionId, id]);
     for (const [index, item] of items.entries()) {
       const tire = item.tipo === 'producto' ? item : null;
       const service = item.tipo === 'servicio' ? item : null;
       await client.query(`INSERT INTO venta_items (venta_id,tipo,llanta_id,bodega_id,llanta_marca_snapshot,llanta_modelo_snapshot,
-        llanta_medida_snapshot,servicio_id,servicio_nombre,cantidad,precio_unitario,subtotal,costo_unitario,costo_subtotal,codigo_auxiliar,producto_id,orden)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        llanta_medida_snapshot,servicio_id,servicio_nombre,cantidad,precio_unitario,subtotal,costo_unitario,costo_subtotal,codigo_auxiliar,producto_id,orden,shared_stock_operation_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
       [id, item.tipoOriginal, tire?.llantaId ?? null, tire?.bodega ?? null, tire?.llantaSnapshot.marca ?? null,
         tire?.llantaSnapshot.modelo ?? null, tire?.llantaSnapshot.medida ?? null, service?.servicioId || null,
         service?.servicioNombre ?? null, item.cantidad, item.precioUnitario, item.subtotal, item.costoUnitario ?? null,
-        item.costoSubtotal ?? null, tire?.llantaSnapshot.codigoAuxiliar ?? null, service?.productoId ?? null, index + 1]);
-      if (tire) await registrarMovimiento(client, { llantaId: tire.llantaId, origen: bodegaPartida(tire.bodega), cantidad: tire.cantidad, tipo: 'venta', ventaId: id });
+        item.costoSubtotal ?? null, tire?.llantaSnapshot.codigoAuxiliar ?? null, service?.productoId ?? null, index + 1, tire ? input.operacionId : null]);
     }
-    return leerVenta(client, id);
+    return { saleId: id, result: await leerVenta(client, id) };
+  };
+  return withSharedStockSale({
+    id: input.operacionId!, request: { input, dominio: dominioInterno },
+    items: tireInput.map((item) => ({ id: item.id, bodega: bodegaPartida(item.bodega), cantidad: item.cantidad })),
+    save, readSale: leerVenta,
   });
 }
 export async function cancelarVenta(id: string, motivo: string): Promise<Venta | null> {
   validarTexto(motivo, 'El motivo de cancelación', 10000);
-  return transaction(async (client) => {
+  const shared = (await db.query<{ id: string }>('SELECT id FROM public.shared_stock_operations WHERE sale_id=$1', [id])).rows[0];
+  const cancel = async (client: PoolClient) => {
     await comprobarVentaEditable(client, id);
     if (!(await client.query('SELECT id FROM ventas WHERE id=$1 FOR UPDATE', [id])).rowCount) return null;
     await comprobarVentaEditable(client, id);
     const venta = await leerVenta(client, id);
-    if (venta.cancelada) throw new Error('La venta ya está cancelada.');
+    if (venta.cancelada) return venta;
     if (venta.facturada) throw new Error('La venta está facturada. Primero debe resolverse la cancelación fiscal correspondiente.');
     const tireItems = venta.items.filter((item): item is VentaItemProducto => item.tipo === 'producto');
     const catalogItems = venta.items.filter((item): item is VentaItemServicio => item.tipo === 'servicio' && (item.tipoOriginal === 'catalogo' || !!item.productoId));
-    const tireIds = [...new Set(tireItems.map((item) => item.llantaId))];
+    if (tireItems.length && !shared) throw new Error('Esta venta de llantas no tiene una operación central verificable. Revisa su origen antes de cancelar.');
     const catalogIds = [...new Set(catalogItems.map((item) => item.productoId).filter((value): value is string => !!value))];
-    // Use PostgreSQL's ordering for every operation, independent of JS locale.
-    if (tireIds.length) await client.query('SELECT id FROM llantas WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE', [tireIds]);
     if (catalogIds.length) await client.query('SELECT id FROM productos WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE', [catalogIds]);
-    for (const item of tireItems) {
-      validarCantidad(item.cantidad);
-      const bodega = bodegaPartida(item.bodega);
-      const row = (await client.query<LlantaRow>('SELECT * FROM llantas WHERE id=$1 FOR UPDATE', [item.llantaId])).rows[0];
-      if (!row) throw new Error('No se puede restaurar una llanta ausente; se canceló la operación completa.');
-      const stock = stockDeFila(row); stock[bodega] += item.cantidad;
-      await guardarStock(client, item.llantaId, stock);
-      await registrarMovimiento(client, { llantaId: item.llantaId, destino: bodega, cantidad: item.cantidad, tipo: 'cancelacion', motivo, ventaId: id });
-    }
     for (const item of catalogItems) {
       if (!item.productoId) throw new Error('La partida de catálogo no tiene una referencia verificable al producto.');
       validarCantidad(item.cantidad);
@@ -270,8 +280,10 @@ export async function cancelarVenta(id: string, motivo: string): Promise<Venta |
       await client.query('UPDATE productos SET stock=$1,updated_at=NOW() WHERE id=$2', [stock, item.productoId]);
     }
     await client.query('UPDATE ventas SET cancelada=true,motivo_cancelacion=$1,garantia_activa=false,updated_at=NOW() WHERE id=$2', [motivo, id]);
+    if (shared) await client.query("UPDATE public.shared_stock_operations SET status='release_pending',updated_at=NOW() WHERE id=$1", [shared.id]);
     return leerVenta(client, id);
-  });
+  };
+  return shared ? withSharedStockCancellation(shared.id, cancel) : transaction(cancel);
 }
 export async function marcarFacturada(id: string, facturaInfo: FacturaInfo): Promise<Venta | null> {
   validarTexto(facturaInfo.uuid, 'El UUID de factura', 100);
@@ -292,6 +304,7 @@ export async function marcarFacturada(id: string, facturaInfo: FacturaInfo): Pro
   });
 }
 export async function obtenerGarantiasActivas(): Promise<Venta[]> {
+  await reconcileSharedStock();
   return (await db.query<VentaRow>(`${selectVenta} WHERE v.cancelada IS NOT TRUE AND v.garantia_activa=true
     AND v.garantia_fecha_fin >= $1::date ORDER BY v.garantia_fecha_fin,v.id`, [getMexicoDateString()])).rows.map(adaptarVenta);
 }
@@ -301,6 +314,7 @@ export async function obtenerUltimoFolio(): Promise<number> {
   return Number(row.value.ultimoFolio);
 }
 export async function obtenerVentaPorGarantia(garantiaId: string): Promise<Venta | null> {
+  await reconcileSharedStock();
   if (!garantiaId.trim()) return null;
   const row = (await db.query<VentaRow>(`${selectDetalle} WHERE UPPER(v.garantia_id)=UPPER($1)`, [garantiaId.trim()])).rows[0];
   return row ? adaptarDetalle(row) : null;

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Warehouse, ArrowRightLeft, Package, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Warehouse, Package, Search } from 'lucide-react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
+import { useInventoryRefresh } from '@/app/_components/useInventoryRefresh';
 import { obtenerInventario } from '../inventario/actions';
 import { SISTEMA_BODEGAS, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { formatCurrency } from '@/lib/utils/formatters';
@@ -12,22 +12,10 @@ import type { Llanta, BodegaId } from '@/types';
 
 export default function BodegasPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
-  const [loading, setLoading] = useState(true);
   const [bodegaActiva, setBodegaActiva] = useState<BodegaId | null>(null);
   const [busqueda, setBusqueda] = useState('');
 
-  useEffect(() => {
-    loadInventario();
-  }, []);
-
-  const loadInventario = async () => {
-    setLoading(true);
-    const result = await obtenerInventario();
-    if (result.success && result.data) {
-      setInventario(result.data);
-    }
-    setLoading(false);
-  };
+  const { loading, error } = useInventoryRefresh(obtenerInventario, setInventario);
 
   const getProductosEnBodega = (bodegaId: BodegaId) => {
     return inventario.filter((l) => (l.stockPorBodega[bodegaId] || 0) > 0);
@@ -83,12 +71,6 @@ export default function BodegasPage() {
           ]}
           actions={
             <div className="flex gap-2">
-              <Link href="/inventario/bodegas/mover">
-                <button className="btn btn-primary flex items-center gap-2">
-                  <ArrowRightLeft className="w-4 h-4" />
-                  Mover Stock
-                </button>
-              </Link>
               <button
                 onClick={() => {
                   setBodegaActiva(null);
@@ -102,6 +84,7 @@ export default function BodegasPage() {
           }
         />
 
+        {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
         {/* Buscador */}
         <div className="mb-4">
           <div className="relative">
@@ -215,16 +198,10 @@ export default function BodegasPage() {
       <PageHeader
         title="Bodegas"
         subtitle="Gestión de inventario por bodega"
-        actions={
-          <Link href="/inventario/bodegas/mover">
-            <button className="btn btn-primary flex items-center gap-2">
-              <ArrowRightLeft className="w-4 h-4" />
-              Mover Stock
-            </button>
-          </Link>
-        }
       />
 
+      {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
+      <p className="mb-4 text-sm text-[var(--text-muted)]">Las llantas se administran en Sistema Inventario.</p>
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
         {SISTEMA_BODEGAS.map((bodega) => {
           const productos = getProductosEnBodega(bodega.id);

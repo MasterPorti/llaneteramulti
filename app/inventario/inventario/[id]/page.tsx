@@ -1,16 +1,13 @@
+import InventoryRouteRefresh from '@/app/_components/InventoryRouteRefresh';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Package, Edit, ArrowLeft, Warehouse, Calendar, DollarSign, Tag, Ruler } from 'lucide-react';
-import { DesactivarLlantaButton } from './DesactivarLlantaButton';
-import { AjustarStockForm } from './AjustarStockForm';
+import { Package, ArrowLeft, Warehouse, Calendar, DollarSign, Tag, Ruler } from 'lucide-react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
-import { obtenerLlantaSistema, eliminarLlantaSistema } from '@/lib/data/sistema-inventario';
+import { obtenerLlantaSistema } from '@/lib/data/sistema-inventario';
 import { SISTEMA_BODEGAS, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { formatCurrency, formatDateShort } from '@/lib/utils/formatters';
 import { getTotalStock } from '@/types';
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,15 +26,10 @@ export default async function LlantaDetallePage({ params }: PageProps) {
   const totalStock = getTotalStock(llanta);
   const codigoAuxiliar = generarCodigoAuxiliar(llanta.medida);
 
-  async function handleEliminar() {
-    'use server';
-    await eliminarLlantaSistema(id);
-    revalidatePath('/inventario/inventario');
-    redirect('/inventario/inventario');
-  }
 
   return (
     <div>
+      <InventoryRouteRefresh />
       <PageHeader
         title={`${llanta.marca} ${llanta.modelo}`}
         subtitle={llanta.medida}
@@ -69,17 +61,10 @@ export default async function LlantaDetallePage({ params }: PageProps) {
                 <Package className="w-5 h-5" />
                 Información del Producto
               </h2>
-              {llanta.activo ? <div className="flex gap-2">
-                <Link href={`/inventario/inventario/${id}/editar`}>
-                  <button className="btn btn-secondary flex items-center gap-2">
-                    <Edit className="w-4 h-4" />
-                    Editar
-                  </button>
-                </Link>
-                <form action={handleEliminar}>
-                  <DesactivarLlantaButton />
-                </form>
-              </div> : <Badge variant="warning">Inactivo · Historial</Badge>}
+              {!llanta.activo && <Badge variant="warning">Inactivo · Historial</Badge>}
+              {llanta.activo && totalStock > 0 && (
+                <Link href={`/ventas/llantas?llantaId=${id}`} className="btn btn-primary">Vender</Link>
+              )}
             </div>
           </CardHeader>
           <CardBody>
@@ -206,12 +191,7 @@ export default async function LlantaDetallePage({ params }: PageProps) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold">Stock por Bodega</h2>
-                {llanta.activo && <Link
-                  href="/inventario/bodegas/mover"
-                  className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                >
-                  Mover stock
-                </Link>}
+
               </div>
             </CardHeader>
             <CardBody className="p-0">
@@ -239,10 +219,7 @@ export default async function LlantaDetallePage({ params }: PageProps) {
             </CardBody>
           </Card>
 
-          {llanta.activo && <Card>
-            <CardHeader><h2 className="font-semibold">Ajustar existencias</h2></CardHeader>
-            <CardBody><AjustarStockForm id={id} stockPorBodega={llanta.stockPorBodega} /></CardBody>
-          </Card>}
+          <p className="text-sm text-[var(--text-muted)]">Las llantas se administran en Sistema Inventario.</p>
 
           {/* Valor en Inventario */}
           <Card>

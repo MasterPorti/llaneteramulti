@@ -69,7 +69,7 @@ export function InventarioTable({ inventario }: InventarioTableProps) {
       data={inventario}
       keyExtractor={(item) => item.id}
       onRowClick={(item) => router.push(`/llantas/${item.id}`)}
-      emptyMessage="No hay llantas en inventario. Agrega la primera."
+      emptyMessage="No hay llantas NEW TIRES para mostrar."
     />
   );
 }

@@ -72,12 +72,6 @@ const menuItems: MenuItem[] = [
     href: "/llantas",
     icon: Package,
   },
-  {
-    label: "Nueva Llanta",
-    href: "/llantas/nuevo",
-    icon: Plus,
-    indent: true,
-  },
 ];
 
 export function Sidebar() {

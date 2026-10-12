@@ -1,17 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShoppingCart, Trash2, Search, Package, Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, CardHeader, Badge } from '@/components/ui';
+import PendingSaleRecovery from '@/app/_components/PendingSaleRecovery';
+import { usePendingSale } from '@/app/_components/usePendingSale';
+import type { PendingSale } from '@/app/_components/pendingSale';
+import type { SistemaVentaInput } from '@/types/sistema';
+import { useInventoryRefresh } from '@/app/_components/useInventoryRefresh';
 import { buscarLlantas, obtenerInventario } from '../../inventario/actions';
 import { crearVenta } from '../actions';
 import { SISTEMA_BODEGAS, SISTEMA_CONFIG, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { calcularImportesVenta, calcularImportePartida } from '@/lib/utils/iva';
-import type { Llanta, BodegaId, LlantaSuggestion } from '@/types';
+import { getTotalStock, type Llanta, type BodegaId, type LlantaSuggestion } from '@/types';
 
 interface ItemVenta {
   llanta: Llanta;
@@ -26,6 +31,8 @@ export default function NuevaVentaPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const pendingSale = usePendingSale<SistemaVentaInput>('sistema');
+  const enviandoRef = useRef(false);
 
   // Inventario para selección
   const [inventario, setInventario] = useState<Llanta[]>([]);
@@ -40,18 +47,9 @@ export default function NuevaVentaPage() {
   const [clienteTelefono, setClienteTelefono] = useState('');
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'tarjeta' | 'transferencia'>('efectivo');
 
-  useEffect(() => {
-    loadInventario();
-  }, []);
-
-  const loadInventario = async () => {
-    const result = await obtenerInventario();
-    if (result.success && result.data) {
-      setInventario(result.data);
-    } else {
-      setError(result.error || 'No se pudo cargar el inventario');
-    }
-  };
+  const { error: inventoryError } = useInventoryRefresh(obtenerInventario, setInventario, loading);
+  const stockActual = (id: string, bodega: BodegaId) =>
+    inventario.find((llanta) => llanta.id === id)?.stockPorBodega[bodega] || 0;
 
   const handleBusqueda = async (term: string) => {
     setBusqueda(term);
@@ -133,8 +131,30 @@ export default function NuevaVentaPage() {
     }
   };
 
+  const sendPendingSale = async (saved: PendingSale<SistemaVentaInput>) => {
+    if (enviandoRef.current || saved.flow !== 'sistema') return;
+    enviandoRef.current = true;
+    setLoading(true);
+    setError('');
+    try {
+      const result = await crearVenta(saved.payload);
+      if (result.success && result.data) {
+        pendingSale.clear(saved.id);
+        router.push(`/inventario/ventas/${result.data.id}`);
+        return;
+      }
+      if (result.operationStatus === 'released') pendingSale.clear(saved.id);
+      setError(result.error || 'No se pudo confirmar la venta.');
+    } catch {
+      setError('No se pudo confirmar la venta. Reintenta la confirmación con los datos guardados.');
+    }
+    enviandoRef.current = false;
+    setLoading(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (enviandoRef.current || !pendingSale.ready || pendingSale.pending || pendingSale.storageError) return;
 
     if (items.length === 0) {
       setError('Agrega al menos un producto');
@@ -152,7 +172,7 @@ export default function NuevaVentaPage() {
 
     // Validar stock
     for (const item of items) {
-      const stockDisponible = item.llanta.stockPorBodega[item.bodega] || 0;
+      const stockDisponible = stockActual(item.llanta.id, item.bodega);
       if (item.cantidad > stockDisponible) {
         setError(
           `Stock insuficiente para ${item.llanta.marca} ${item.llanta.modelo}. Disponible: ${stockDisponible}`
@@ -161,28 +181,24 @@ export default function NuevaVentaPage() {
       }
     }
 
-    setLoading(true);
-    setError('');
-
-    const result = await crearVenta({
+    if ([...clienteNombre.trim()].length > 200 || [...clienteTelefono.trim()].length > 20) {
+      setError('El nombre debe tener hasta 200 caracteres y el teléfono hasta 20.');
+      return;
+    }
+    const input: SistemaVentaInput = {
+      operacionId: crypto.randomUUID(),
       clienteNombre: clienteNombre.trim(),
       clienteTelefono: clienteTelefono.trim() || undefined,
       items: items.map((item) => ({
         llantaId: item.llanta.id,
         bodega: item.bodega,
         cantidad: item.cantidad,
-        precioCustom: item.precioUnitario !== item.llanta.precioVenta ? item.precioUnitario : undefined,
+        precioCustom: item.precioUnitario,
       })),
       metodoPago,
-    });
-
-    if (result.success && result.data) {
-      router.push(`/inventario/ventas/${result.data.id}`);
-    } else {
-      setError(result.error || 'Error al crear venta');
-    }
-
-    setLoading(false);
+    };
+    const saved = pendingSale.store(input);
+    if (saved) await sendPendingSale(saved);
   };
 
   return (
@@ -210,7 +226,12 @@ export default function NuevaVentaPage() {
         </div>
       )}
 
+      <PendingSaleRecovery pending={pendingSale.pending} storageError={pendingSale.storageError}
+        loading={loading} historyHref="/inventario/ventas" currentFlow="sistema"
+        onRetry={() => { if (pendingSale.pending) void sendPendingSale(pendingSale.pending); }} />
+      {inventoryError && <p role="status" className="mb-4 text-amber-600">{inventoryError}</p>}
       <form onSubmit={handleSubmit}>
+        <fieldset disabled={loading || !pendingSale.ready || !!pendingSale.pending || !!pendingSale.storageError} className="min-w-0">
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Columna Principal */}
           <div className="lg:col-span-2 space-y-6">
@@ -256,8 +277,8 @@ export default function NuevaVentaPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold">{formatCurrency(s.precioVenta)}</p>
-                            <Badge variant={s.stockTotal > 0 ? 'success' : 'danger'}>
-                              {s.stockTotal} disp.
+                            <Badge variant={getTotalStock(llanta) > 0 ? 'success' : 'danger'}>
+                              {getTotalStock(llanta)} disp.
                             </Badge>
                           </div>
                         </button>
@@ -285,7 +306,7 @@ export default function NuevaVentaPage() {
                 ) : (
                   <div className="space-y-4">
                     {items.map((item, index) => {
-                      const stockDisponible = item.llanta.stockPorBodega[item.bodega] || 0;
+                      const stockDisponible = stockActual(item.llanta.id, item.bodega);
                       return (
                         <div
                           key={`${item.llanta.id}-${item.bodega}`}
@@ -319,10 +340,10 @@ export default function NuevaVentaPage() {
                                 }
                               >
                                 {SISTEMA_BODEGAS.filter(
-                                  (b) => (item.llanta.stockPorBodega[b.id] || 0) > 0
+                                  (b) => b.id === item.bodega || stockActual(item.llanta.id, b.id) > 0
                                 ).map((b) => (
                                   <option key={b.id} value={b.id}>
-                                    {b.nombre} ({item.llanta.stockPorBodega[b.id]})
+                                    {b.nombre} ({stockActual(item.llanta.id, b.id)})
                                   </option>
                                 ))}
                               </select>
@@ -489,6 +510,7 @@ export default function NuevaVentaPage() {
             </Card>
           </div>
         </div>
+        </fieldset>
       </form>
     </div>
   );

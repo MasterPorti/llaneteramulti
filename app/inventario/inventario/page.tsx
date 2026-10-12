@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { Package, Plus, Search, Filter } from 'lucide-react';
+import { Package, Search, Filter } from 'lucide-react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, Badge } from '@/components/ui';
+import { useInventoryRefresh } from '@/app/_components/useInventoryRefresh';
 import { obtenerInventario } from './actions';
 import { SISTEMA_BODEGAS, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { formatCurrency } from '@/lib/utils/formatters';
@@ -12,22 +13,14 @@ import { getTotalStock, type Llanta, type BodegaId } from '@/types';
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
-  const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [bodegaFiltro, setBodegaFiltro] = useState<BodegaId | ''>('');
   const [estadoFiltro, setEstadoFiltro] = useState('activos');
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    let mounted = true;
-    obtenerInventario({ incluirInactivos: true }).then((result) => {
-      if (!mounted) return;
-      if (result.success && result.data) setInventario(result.data);
-      else setError(result.error || 'No se pudo cargar el inventario');
-      setLoading(false);
-    });
-    return () => { mounted = false; };
-  }, []);
+  const { loading, error } = useInventoryRefresh(
+    () => obtenerInventario({ incluirInactivos: true }),
+    setInventario,
+  );
 
   // Filtrar inventario
   const inventarioFiltrado = inventario
@@ -76,15 +69,7 @@ export default function InventarioPage() {
     <div>
       <PageHeader
         title="Inventario"
-        subtitle={`${inventario.length} productos en total`}
-        actions={
-          <Link href="/inventario/inventario/nuevo">
-            <button className="btn btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Agregar Llanta
-            </button>
-          </Link>
-        }
+        subtitle={`${inventario.length} llantas NEW TIRES · Existencias compartidas`}
       />
 
       {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
@@ -141,9 +126,7 @@ export default function InventarioPage() {
                   Limpiar filtros
                 </button>
               ) : (
-                <Link href="/inventario/inventario/nuevo" className="mt-2 text-sm text-[var(--accent)] hover:underline">
-                  Agregar primera llanta
-                </Link>
+                <p className="mt-2 text-sm">Las llantas se administran en Sistema Inventario.</p>
               )}
             </div>
           </CardBody>

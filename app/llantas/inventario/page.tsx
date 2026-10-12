@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Search, Package } from "lucide-react";
 import { PageHeader } from "@/components/layout";
 import { Card, CardBody, Badge } from "@/components/ui";
+import { useInventoryRefresh } from '@/app/_components/useInventoryRefresh';
 import { obtenerInventario } from "./actions";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getTotalStock, type Llanta, type BodegaId } from "@/types";
@@ -12,22 +13,14 @@ import { BODEGAS } from "@/lib/config";
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
-  const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("activos");
-  const [error, setError] = useState("");
   const [bodegaFiltro, setBodegaFiltro] = useState<BodegaId | "">("");
 
-  useEffect(() => {
-    let mounted = true;
-    obtenerInventario({ incluirInactivos: true }).then((result) => {
-      if (!mounted) return;
-      if (result.success && result.data) setInventario(result.data);
-      else setError(result.error || 'No se pudo cargar el inventario');
-      setLoading(false);
-    });
-    return () => { mounted = false; };
-  }, []);
+  const { loading, error } = useInventoryRefresh(
+    () => obtenerInventario({ incluirInactivos: true }),
+    setInventario,
+  );
   const inventarioFiltrado = inventario.filter((l) => {
     if (estadoFiltro === "activos" && !l.activo) return false;
     if (estadoFiltro === "inactivos" && l.activo) return false;
@@ -68,7 +61,7 @@ export default function InventarioPage() {
     <div>
       <PageHeader
         title="Inventario"
-        subtitle={`${inventario.length} productos en catálogo`}
+        subtitle={`${inventario.length} llantas NEW TIRES · Existencias compartidas`}
       />
 
       {/* Buscador y Filtros */}
@@ -142,7 +135,7 @@ export default function InventarioPage() {
                   )}
                 </p>
               ) : (
-                <p>No hay llantas en inventario. Agrega la primera.</p>
+                <p>No hay llantas NEW TIRES para mostrar.</p>
               )}
             </div>
           </CardBody>

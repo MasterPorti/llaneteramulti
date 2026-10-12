@@ -81,6 +81,8 @@ export interface Venta {
 }
 
 export interface VentaInput {
+  /** Stable for retries of the same sale, including services and products. */
+  operacionId?: string;
   clienteNombre: string;
   clienteTelefono?: string;
   items: Array<{

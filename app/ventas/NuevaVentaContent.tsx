@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   Search,
   Package,
@@ -15,6 +16,10 @@ import {
   ScanBarcode,
   ShoppingBag,
 } from 'lucide-react';
+import PendingSaleRecovery from '@/app/_components/PendingSaleRecovery';
+import { usePendingSale } from '@/app/_components/usePendingSale';
+import type { PendingSale } from '@/app/_components/pendingSale';
+import { useInventoryRefresh } from '@/app/_components/useInventoryRefresh';
 import { obtenerInventario } from '@/app/llantas/actions';
 import { obtenerServicios } from '@/app/servicios/actions';
 import { obtenerProductos } from '@/app/productos/actions';
@@ -72,6 +77,8 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   const llantaIdParam = searchParams.get('llantaId');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const pendingSale = usePendingSale<VentaInput>('general');
+  const enviandoRef = useRef(false);
 
   // Data
   const [inventario, setInventario] = useState<Llanta[]>([]);
@@ -109,19 +116,41 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const barcodeBufferRef = useRef('');
 
-  // Load data
+  const { loading: inventoryLoading, error: inventoryError } = useInventoryRefresh(
+    obtenerInventario,
+    (data) => {
+      setInventario(data);
+      setProductoSeleccionado((selected) => selected ? (
+        data.find((llanta) => llanta.id === selected.id) || { ...selected, activo: false, stockPorBodega: {} as Llanta['stockPorBodega'] }
+      ) : null);
+      if (!llantaIdParam) llantaPreseleccionadaRef.current = null;
+      if (llantaIdParam && llantaPreseleccionadaRef.current !== llantaIdParam && !pendingSale.pending) {
+        const llanta = data.find((entry) => entry.id === llantaIdParam);
+        if (llanta) {
+          llantaPreseleccionadaRef.current = llantaIdParam;
+          setProductoSeleccionado(llanta);
+          setBodegaSeleccionada(BODEGAS.find((b) => (llanta.stockPorBodega[b.id] || 0) > 0)?.id || 'bodega-1');
+          setCantidadProducto(1);
+          setSearchTerm(`${llanta.marca} ${llanta.modelo} - ${llanta.medida}`);
+          setActiveTab('llantas');
+          barcodeBufferRef.current = '';
+          setBarcodeBuffer('');
+        }
+      }
+    },
+    loading,
+    llantaIdParam,
+  );
+
+  // Load the separate service and product catalogs.
   useEffect(() => {
     async function loadData() {
       setDataLoading(true);
-      const [invResult, servResult, prodResult] = await Promise.all([
-        obtenerInventario(),
+      const [servResult, prodResult] = await Promise.all([
         obtenerServicios(),
         obtenerProductos(),
       ]);
 
-      if (invResult.success && invResult.data) {
-        setInventario(invResult.data);
-      }
       if (servResult.success && servResult.data) {
         setServicios(servResult.data.filter((s) => s.activo));
       }
@@ -132,25 +161,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
     }
     loadData();
   }, []);
-
-  // Auto-select product from URL param
-  useEffect(() => {
-    if (!llantaIdParam) {
-      llantaPreseleccionadaRef.current = null;
-      return;
-    }
-    if (inventario.length > 0 && llantaPreseleccionadaRef.current !== llantaIdParam) {
-      const llanta = inventario.find((l) => l.id === llantaIdParam);
-      if (llanta) {
-        llantaPreseleccionadaRef.current = llantaIdParam;
-        setProductoSeleccionado(llanta);
-        setBodegaSeleccionada(BODEGAS.find((b) => (llanta.stockPorBodega[b.id] || 0) > 0)?.id || 'bodega-1');
-        setCantidadProducto(1);
-        setSearchTerm(`${llanta.marca} ${llanta.modelo} - ${llanta.medida}`);
-        setActiveTab('llantas');
-      }
-    }
-  }, [llantaIdParam, inventario]);
 
   // Barcode scanner handler
   const handleBarcodeSubmit = useCallback((code: string) => {
@@ -187,9 +197,8 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
 
   // Barcode scanner keyboard listener
   useEffect(() => {
-    if (activeTab !== 'servicios') {
+    if (activeTab !== 'servicios' || loading || pendingSale.pending || !pendingSale.ready || pendingSale.storageError) {
       barcodeBufferRef.current = '';
-      setBarcodeBuffer('');
       return;
     }
 
@@ -233,7 +242,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
         clearTimeout(barcodeTimeoutRef.current);
       }
     };
-  }, [activeTab, handleBarcodeSubmit]);
+  }, [activeTab, handleBarcodeSubmit, loading, pendingSale.pending, pendingSale.ready, pendingSale.storageError]);
 
   // Filtered llantas for search
   const filteredProducts = inventario.filter((l) => {
@@ -369,7 +378,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
     const item = cartItems[index];
     if (item.tipo === 'producto') {
       const productItem = item as CartItemLlanta;
-      const stockDisponible = productItem.llanta.stockPorBodega[productItem.bodega] || 0;
+      const stockDisponible = inventario.find((llanta) => llanta.id === productItem.id)?.stockPorBodega[productItem.bodega] || 0;
       if (newQty > stockDisponible) {
         setError(`Solo hay ${stockDisponible} unidades disponibles`);
         return;
@@ -433,8 +442,30 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       sum + (item.tipo === 'producto' && item.id === productoSeleccionado.id && item.bodega === bodegaSeleccionada ? item.cantidad : 0), 0))
     : 0;
 
+  const sendPendingSale = async (saved: PendingSale<VentaInput>) => {
+    if (enviandoRef.current || saved.flow !== 'general') return;
+    enviandoRef.current = true;
+    setLoading(true);
+    setError('');
+    try {
+      const result = await crearVenta(saved.payload);
+      if (result.success && result.data) {
+        pendingSale.clear(saved.id);
+        router.push(`/ventas/${result.data.id}`);
+        return;
+      }
+      if (result.operationStatus === 'released') pendingSale.clear(saved.id);
+      setError(result.error || 'No se pudo confirmar la venta.');
+    } catch {
+      setError('No se pudo confirmar la venta. Reintenta la confirmación con los datos guardados.');
+    }
+    enviandoRef.current = false;
+    setLoading(false);
+  };
+
   // Submit sale
   const handleSubmit = async () => {
+    if (enviandoRef.current || !pendingSale.ready || pendingSale.pending || pendingSale.storageError) return;
     if (cartItems.length === 0) {
       setError('Agrega al menos un producto o servicio');
       return;
@@ -462,10 +493,12 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
         }
       }
     }
-    setLoading(true);
-    setError('');
-
+    if ([...clienteNombre.trim()].length > 200 || [...clienteTelefono.trim()].length > 20) {
+      setError('El nombre debe tener hasta 200 caracteres y el teléfono hasta 20.');
+      return;
+    }
     const input: VentaInput = {
+      operacionId: crypto.randomUUID(),
       clienteNombre: clienteNombre.trim() || 'Cliente general',
       clienteTelefono: clienteTelefono.trim() || undefined,
       items: cartItems.map((item) => {
@@ -476,7 +509,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
             id: prodItem.id,
             cantidad: prodItem.cantidad,
             bodega: prodItem.bodega,
-            precioCustom: prodItem.precioUnitario !== prodItem.llanta.precioVenta ? prodItem.precioUnitario : undefined,
+            precioCustom: prodItem.precioUnitario,
           };
         } else if (item.tipo === 'catalogo') {
           const catItem = item as CartItemCatalogo;
@@ -484,7 +517,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
             tipo: 'catalogo' as const,
             id: catItem.id,
             cantidad: catItem.cantidad,
-            precioCustom: catItem.precioUnitario !== catItem.producto.precio ? catItem.precioUnitario : undefined,
+            precioCustom: catItem.precioUnitario,
           };
         } else if (item.tipo === 'extra') {
           const extraItem = item as CartItemExtra;
@@ -501,7 +534,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
             tipo: 'servicio' as const,
             id: servItem.id,
             cantidad: servItem.cantidad,
-            precioCustom: servItem.precioUnitario !== servItem.servicio.precioDefault ? servItem.precioUnitario : undefined,
+            precioCustom: servItem.precioUnitario,
           };
         }
       }),
@@ -510,17 +543,11 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       generarFactura,
     };
 
-    const result = await crearVenta(input);
-
-    if (result.success && result.data) {
-      router.push(`/ventas/${result.data.id}`);
-    } else {
-      setError(result.error || 'Error al crear la venta');
-      setLoading(false);
-    }
+    const saved = pendingSale.store(input);
+    if (saved) await sendPendingSale(saved);
   };
 
-  if (dataLoading) {
+  if (!pendingSale.ready || ((dataLoading || inventoryLoading) && !pendingSale.pending && !pendingSale.storageError)) {
     return (
       <div className="flex items-center justify-center py-20">
         <span className="spinner" />
@@ -531,10 +558,14 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
 
   return (
     <div>
+      <PendingSaleRecovery pending={pendingSale.pending} storageError={pendingSale.storageError}
+        loading={loading} historyHref="/ventas" currentFlow="general"
+        onRetry={() => { if (pendingSale.pending) void sendPendingSale(pendingSale.pending); }} />
+    <fieldset disabled={loading || !!pendingSale.pending || !!pendingSale.storageError} className="min-w-0">
       {/* Header */}
       <div className="page-header">
         <nav className="text-sm text-gray-500 mb-2">
-          <a href="/ventas" className="hover:text-gray-700">Ventas</a>
+          <Link href="/ventas" className="hover:text-gray-700">Ventas</Link>
           <span className="mx-2">/</span>
           <span className="text-gray-700">Nueva Venta</span>
         </nav>
@@ -542,6 +573,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
         <p className="page-subtitle">Registra productos y servicios para la venta</p>
       </div>
 
+      {inventoryError && <p role="status" className="mb-4 text-amber-700">{inventoryError}</p>}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
@@ -550,7 +582,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
             <div className="flex border-b">
               <button
                 type="button"
-                onClick={() => setActiveTab('servicios')}
+                onClick={() => { setActiveTab('servicios'); setBarcodeBuffer(''); }}
                 className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'servicios'
                     ? 'border-blue-600 text-blue-600'
@@ -562,7 +594,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('productos')}
+                onClick={() => { setActiveTab('productos'); setBarcodeBuffer(''); }}
                 className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'productos'
                     ? 'border-blue-600 text-blue-600'
@@ -574,7 +606,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('llantas')}
+                onClick={() => { setActiveTab('llantas'); setBarcodeBuffer(''); }}
                 className={`flex items-center gap-2 px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === 'llantas'
                     ? 'border-blue-600 text-blue-600'
@@ -1105,6 +1137,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
           </button>
         </div>
       </div>
+    </fieldset>
     </div>
   );
 }
