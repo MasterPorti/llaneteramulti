@@ -10,9 +10,25 @@ test('fresh preparation rejects stale and future packages',()=>{
   const now=Date.parse('2026-10-12T10:00:00Z');assertFresh('2026-10-12T09:30:00Z',now);
   for(const t of ['2026-10-12T08:59:59Z','2026-10-12T10:01:00Z','invalid'])assert.throws(()=>assertFresh(t,now),/FRESH_PACKAGE_REQUIRED/);
 });
-test('identity must match endpoint, cluster, database, OID, and owner',()=>{
-  const expected={host:'example.invalid',port:'5432',database:'postgres',oid:'123',owner:'owner',cluster_identifier:'456'};
-  assertIdentity({...expected},expected);for(const key of Object.keys(expected))assert.throws(()=>assertIdentity({...expected,[key]:'different'},expected),/EXACT_SERVER_DATABASE_IDENTITY_MISMATCH/);
+const identityFixture={host:'example.invalid',port:'12458',database:'postgres',oid:'5',owner:'admmin',session_user:'admmin',server_port:5432,cluster_identifier:'7616769985036025889',server_address:'fd37:257e:b499::2/128'};
+test('identity must match all stable endpoint, cluster, database, OID, owner and session fields',()=>{
+  const expected={...identityFixture};assertIdentity({...expected},expected);
+  for(const key of Object.keys(expected).filter(key=>key!=='server_address'))assert.throws(()=>assertIdentity({...expected,[key]:'different'},expected),/EXACT_SERVER_DATABASE_IDENTITY_MISMATCH/);
+  const missing={...expected};delete missing.cluster_identifier;
+  assert.throws(()=>assertIdentity(missing,expected),/EXACT_SERVER_DATABASE_IDENTITY_MISMATCH/);
+});
+test('the same exact server identity accepts valid IPv4 and IPv6 route observations',()=>{
+  const expected={...identityFixture,port:'7453',database:'llaneteramulti_new_tires',oid:'16821',owner:'admnnn',session_user:'admnnn',cluster_identifier:'7616040400953217057',server_address:'fd37:257e:b499::a/128'};
+  assertIdentity({...expected,server_address:'10.0.1.10/32'},expected);
+  assertIdentity({...expected,server_address:'10.0.1.10'},expected);
+  assertIdentity({...expected,server_address:'fd37:257e:b499::a'},expected);
+  assert.throws(()=>assertIdentity({...expected,server_address:'10.0.1.10/32',cluster_identifier:'different'},expected),/EXACT_SERVER_DATABASE_IDENTITY_MISMATCH/);
+});
+test('both route observations must be valid PostgreSQL inet strings',()=>{
+  for(const address of [null,'','not-an-address','10.0.1.10/33','fd37:257e:b499::a/129','10.0.1.10/-1','10.0.1.10/32/extra','10.0.1.10/']){
+    assert.throws(()=>assertIdentity({...identityFixture,server_address:address},identityFixture),/INVALID_OBSERVED_SERVER_ADDRESS/);
+    assert.throws(()=>assertIdentity(identityFixture,{...identityFixture,server_address:address}),/INVALID_OBSERVED_SERVER_ADDRESS/);
+  }
 });
 test('application version marker is exact, deterministic and below PostgreSQL 63-byte limit',()=>{
   const hash='ab'.repeat(32),marker=applicationNameForArtifact(hash);assert.equal(marker,'llm:'+hash.slice(0,48));assert.equal(Buffer.byteLength(marker),52);

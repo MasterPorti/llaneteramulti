@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+import { isIP } from 'node:net';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import { qi, sha256, rowsHash } from './snapshot.mjs';
@@ -20,7 +21,22 @@ export const save=async(file,value)=>fs.writeFile(privatePath(file),JSON.stringi
 export function assertFresh(timestamp,now=Date.now()){
   const t=Date.parse(timestamp);assert.ok(Number.isFinite(t)&&now-t>=-30000&&now-t<=maxAgeMs,'FRESH_PACKAGE_REQUIRED');
 }
-export function assertIdentity(actual,expected){assert.deepEqual(actual,expected,'EXACT_SERVER_DATABASE_IDENTITY_MISMATCH');}
+export function assertIdentity(actual,expected){
+  const stableFields=['host','port','database','oid','owner','session_user','server_port','cluster_identifier'];
+  const expectedKeys=[...stableFields,'server_address'].sort();
+  for(const value of [actual,expected]){
+    assert.ok(value&&typeof value==='object','EXACT_SERVER_DATABASE_IDENTITY_MISMATCH');
+    assert.deepEqual(Object.keys(value).sort(),expectedKeys,'EXACT_SERVER_DATABASE_IDENTITY_MISMATCH');
+    const address=value.server_address;
+    assert.equal(typeof address,'string','INVALID_OBSERVED_SERVER_ADDRESS');
+    const parts=address.split('/'),family=isIP(parts[0]);
+    assert.ok(family!==0&&parts.length<=2,'INVALID_OBSERVED_SERVER_ADDRESS');
+    if(parts.length===2)assert.ok(/^\d{1,3}$/.test(parts[1])&&Number(parts[1])<=(family===4?32:128),'INVALID_OBSERVED_SERVER_ADDRESS');
+  }
+  // Docker may route the same server through IPv4 or IPv6. Preserve each observed
+  // inet address as evidence; compare every stable server/database identifier.
+  for(const field of stableFields)assert.deepEqual(actual[field],expected[field],'EXACT_SERVER_DATABASE_IDENTITY_MISMATCH');
+}
 export async function codeHashes(){return Object.fromEntries(await Promise.all(codeFiles.map(async name=>[name,sha256(await fs.readFile(path.join(root,'scripts','migration',name)))])));}
 export function documentHashes(documents){return Object.fromEntries(documents.map(([label,bytes])=>[label,sha256(bytes)]));}
 export function verifyDocumentHashes(documents,approved){assert.deepEqual(documentHashes(documents),approved,'INPUT_DOCUMENT_CHANGED');}

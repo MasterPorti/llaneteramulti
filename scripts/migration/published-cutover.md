@@ -6,6 +6,8 @@ Los ejecutores de esta carpeta no arrancan ni despliegan aplicaciones. `publishe
 
 Guardar bajo `.migration-backups` la identidad exacta del destino obtenida con `identity(client, connection)` de `published-production-support.mjs`. Incluye host, puerto, base, OID, propietario, usuario de sesión, dirección y puerto del servidor, e identificador del clúster. La base de destino debe ser `postgres` y la conexión administrativa debe pertenecer a su propietario.
 
+La dirección interna observada del servidor puede alternar entre IPv4 e IPv6 dentro de Docker. Ambas direcciones se validan como valores `inet` y se conservan como evidencia de la ruta. La identidad se compara exactamente por host y puerto del endpoint, base, OID, propietario, usuario de sesión, puerto del servidor e identificador del clúster; ninguno de esos campos admite cambios de ruta como excepción.
+
 Por decisión explícita del usuario, la app conserva `admmin`, el propietario existente. El ejecutor no crea roles ni cambia su contraseña, membresías, atributos o permisos. Los ejecutores antiguos de creación y ensayo de un rol limitado no forman parte de este procedimiento.
 
 La versión nueva envía `application_name=llm:<primeros 48 caracteres hex del SHA256 del artefacto>`, configurado mediante `LLANTERA_APPLICATION_ID`. La marca mide 52 bytes y se valida exactamente. Es una barrera para impedir escrituras accidentales de la app vieja. El propietario conserva sus facultades administrativas y podría cambiar deliberadamente la marca, el gate o sus triggers. Por eso se exige detener la app anterior y verificar realmente el artefacto y entorno desplegados antes de activar.
