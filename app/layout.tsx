@@ -39,10 +39,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Extensions may add attributes such as data-mbtss-nonce before hydration.
-  // Limit this exception to <html>; descendants keep their hydration checks.
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <RootWrapper>{children}</RootWrapper>
         <script
