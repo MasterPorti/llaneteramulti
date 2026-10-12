@@ -12,7 +12,6 @@ import {
   CreditCard,
   Banknote,
   ArrowLeftRight,
-  CirclePlus,
   ScanBarcode,
   ShoppingBag,
 } from 'lucide-react';
@@ -103,10 +102,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
 
   // Editable prices in cart (index -> string value while typing)
   const [editingPrices, setEditingPrices] = useState<Record<number, string>>({});
-
-  // Extra quick-add
-  const [extraPrecio, setExtraPrecio] = useState('50');
-  const [extraNota, setExtraNota] = useState('');
 
   // Barcode scanner
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
@@ -362,32 +357,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       };
       setCartItems([...cartItems, newItem]);
     }
-  };
-
-  // Add extra to cart (quick-add in servicios tab)
-  const addExtraToCart = () => {
-    const precio = parseFloat(extraPrecio) || 0;
-    if (precio <= 0) return;
-
-    const extraServicio = servicios.find((s) => s.nombre === 'Extra / Material');
-    if (!extraServicio) {
-      setError('Servicio "Extra / Material" no encontrado. Agrégalo en /servicios');
-      return;
-    }
-
-    const newItem: CartItemServicio = {
-      tipo: 'servicio',
-      id: extraServicio.id,
-      servicio: {
-        ...extraServicio,
-        descripcion: extraNota.trim() || extraServicio.descripcion,
-      },
-      cantidad: 1,
-      precioUnitario: precio,
-    };
-    setCartItems([...cartItems, newItem]);
-    setExtraPrecio('50');
-    setExtraNota('');
   };
 
   // Update item quantity
@@ -669,34 +638,6 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                     </div>
                   )}
 
-                  {/* Quick-add extra */}
-                  <div className="border-t pt-4">
-                    <p className="text-xs font-medium text-gray-500 mb-2">Extra / Material adicional</p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        className="input flex-1"
-                        placeholder="Nota (opcional)"
-                        value={extraNota}
-                        onChange={(e) => setExtraNota(e.target.value)}
-                      />
-                      <input
-                        type="number"
-                        className="input w-24"
-                        placeholder="Precio"
-                        value={extraPrecio}
-                        onChange={(e) => setExtraPrecio(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-secondary flex items-center gap-1"
-                        onClick={addExtraToCart}
-                      >
-                        <CirclePlus className="w-4 h-4" />
-                        Agregar
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
 
