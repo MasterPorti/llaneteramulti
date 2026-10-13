@@ -1,0 +1,97 @@
+BASE COMPARTIDA: CONTRATO Y OPERACION
+
+Las dos aplicaciones usan una sola DATABASE_URL cuando SHARED_DATABASE_MODE=true.
+El esquema operativo conserva las tablas de SistemaBodega. La aplicacion blanca
+adapta ese esquema y no mantiene una segunda copia de existencias ni de ventas.
+CENTRAL_INVENTORY_DATABASE_URL debe estar ausente, incluso como variable vacia.
+
+VISIBILIDAD Y DOCUMENTOS
+- Llantas: New Tires y las propias de la aplicacion blanca.
+- Productos generales y servicios: catalogo compartido completo.
+- Ventas: propias blancas, documentos con partidas New Tires y ventas de productos.
+- Un ticket mixto conserva todas sus partidas y su total. El reporte identifica
+  por separado el importe bruto de las partidas New Tires.
+- La clasificacion del proveedor se captura con la venta; no cambia si despues
+  se edita el proveedor del catalogo.
+- Las copias previas se identifican por identidad y evidencia de la migracion,
+  nunca solo por nombre, medida o descripcion. Existencias replicadas no se suman.
+
+IVA Y COSTOS
+Cada aplicacion conserva su politica actual para ventas nuevas. La blanca
+desglosa el 16% incluido; la negra mantiene su comportamiento vigente.
+Los 465 documentos historicos comunes ya tenian importes fiscales distintos:
+el documento canonico conserva el registro negro y la blanca recupera sus
+valores registrados del archivo original inmutable, validando SHA256, identidad,
+folio, subtotal + IVA y total. No se recalcula un porcentaje sobre el historial.
+Los costos desconocidos permanecen NULL y no se convierten en cero.
+
+ORIGINALES Y PROTECCIONES
+shared_archive conserva el texto original, hash e identidad de cada fila de
+ambas fuentes, documentos originales y mapas de correspondencia. El archivo no
+admite UPDATE, DELETE ni TRUNCATE mediante los permisos normales de la app.
+Los documentos historicos protegidos no pueden cancelarse ni modificarse.
+Folios, garantias, ventas, existencias y registro de reintentos se confirman
+en una misma transaccion. Una solicitud repetida no genera otra venta.
+
+DESARROLLO
+La base de desarrollo es una instancia distinta de PostgreSQL, con volumen y
+credenciales propios. En Coolify se encuentra en el entorno desarrollo-llantas
+con nombre llantas-postgresql-desarrollo. No tiene puerto publico.
+La copia local de trabajo usa exclusivamente 127.0.0.1:55439/llantas_unified_dev.
+Las contrasenas y respaldos quedan fuera de Git.
+En Windows, LLANTAS_DEV_RUNTIME en .env.local indica la carpeta privada del
+PostgreSQL preparado. Despues de reiniciar el equipo, ejecutar npm run dev:db
+antes de npm run dev. Ese comando solo inicia y comprueba la copia de loopback.
+Para abrir ambas apps a la vez, usar puertos diferentes con -- --port 3001 en
+la segunda. Las escrituras locales afectan solo a la copia local de desarrollo.
+
+Variables obligatorias del modo compartido:
+  DATABASE_URL=<conexion de la instancia elegida, obtenida de forma privada>
+  SHARED_DATABASE_MODE=true
+  SHARED_DATABASE_ENVIRONMENT=development
+  SHARED_DATABASE_ID=<UUID de shared_runtime.configuration>
+  DB_REQUIRE_SSL=<segun el transporte autorizado>
+
+Nunca copiar el .env publicado para desarrollar. Cada conexion verifica el
+nombre, entorno, version y UUID de la base antes de cualquier SQL de negocio.
+NODE_ENV distinto de production rechaza una base marcada como production.
+La copia remota de desarrollo tiene UUID propio, distinto de la copia local.
+Para conectar desde fuera del servidor se requiere un tunel SSH autorizado;
+no publicar el puerto ni reutilizar una conexion de produccion.
+
+ENSAYO Y CORTE
+1. Obtener snapshots de solo lectura y respaldos nativos de ambas fuentes.
+2. Restaurar en instancias aisladas y comparar todas las filas, objetos SQL,
+   secuencias y archivos binarios. Registrar SHA256 de cada respaldo utilizado.
+3. Generar el plan con scripts/shared-database/merge-plan.mjs. Cualquier conflicto
+   no explicado aborta; nunca resolverlo borrando o sumando automaticamente.
+4. Ensayar mediante install-development.mjs, limitado a la instancia local.
+   Repetir y comprobar que no inserta duplicados. Ejecutar pruebas concurrentes
+   sobre una tercera copia desechable; nunca en desarrollo base ni en produccion.
+5. Antes del corte real: terminar las operaciones en curso, pausar ambos escritores,
+   evitar nuevas conexiones de negocio, capturar de nuevo ambas fuentes y
+   restaurar/verificar esos respaldos finales. El ensayo previo no sustituye esto.
+6. Revisar el plan final, permisos del usuario existente y configuracion de ambas
+   aplicaciones. Aplicar la union en una transaccion con verificacion completa.
+7. Publicar las dos versiones compatibles hacia la base negra con entorno
+   production y el mismo UUID de produccion. Eliminar la conexion de paridad.
+8. Comprobar lecturas, identidad, permisos, conteos, importes y archivos antes de
+   reabrir ventas. No crear ventas ficticias en la base real para verificarla.
+
+La base blanca anterior se conserva como evidencia y respaldo, sin escritores.
+No se restaura un respaldo viejo encima de una base que ya recibio ventas nuevas.
+Si aparecen operaciones nuevas despues del corte, una reversion requiere
+conciliar esos movimientos; cambiar solamente la URL perderia su visibilidad.
+Un fallo dentro de la transaccion de union provoca ROLLBACK. Si falla el despliegue
+antes de reabrir ventas, mantener la pausa y resolver con los respaldos y versiones
+exactas registrados para ese corte.
+
+PRUEBAS
+node --test scripts/shared-database-guard.test.mjs
+node --test scripts/shared-database-white.test.mjs
+node --test scripts/shared-database/merge-plan.test.mjs
+El runner integration.mjs exige una conexion privada local y una base de pruebas
+separada, nunca la URL publicada. Ver su cabecera para argumentos explicitos.
+
+No incluir dumps, .env, capturas con datos personales, hashes privados de acceso
+ni archivos de conexion en commits o descripciones de GitHub.

@@ -1,4 +1,88 @@
 import { Pool, types, type PoolClient, type QueryResultRow } from 'pg';
+type SharedDatabaseEnvironment = 'development' | 'production';
+interface SharedDatabaseSettings {
+  url: string;
+  database: string;
+  environment: SharedDatabaseEnvironment;
+  instanceId: string;
+}
+
+declare global {
+  var _sharedCanonicalPg: { pool: Pool; settings: SharedDatabaseSettings } | undefined;
+}
+
+/** Validate local intent before creating a pool. Never infer development from a database name. */
+function sharedSettings(): SharedDatabaseSettings {
+  if (process.env.CENTRAL_INVENTORY_DATABASE_URL !== undefined) {
+    throw new Error('El modo unificado no admite CENTRAL_INVENTORY_DATABASE_URL; usa únicamente la base compartida.');
+  }
+  const environment = process.env.SHARED_DATABASE_ENVIRONMENT;
+  if (environment !== 'development' && environment !== 'production') {
+    throw new Error('Falta una SHARED_DATABASE_ENVIRONMENT válida (development o production).');
+  }
+  if (environment === 'production' && process.env.NODE_ENV !== 'production') {
+    throw new Error('El entorno de desarrollo no puede conectarse a la base compartida de producción.');
+  }
+  const instanceId = process.env.SHARED_DATABASE_ID;
+  if (!instanceId || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(instanceId)) {
+    throw new Error('Falta una SHARED_DATABASE_ID válida para identificar la instancia compartida.');
+  }
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('Falta DATABASE_URL para la base compartida.');
+  let database: string;
+  try {
+    const parsed = new URL(url);
+    if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.hostname) throw new Error();
+    database = decodeURIComponent(parsed.pathname.slice(1));
+    if (!database || database.includes('/')) throw new Error();
+  } catch {
+    // URL parser errors may include the connection string. Do not propagate them.
+    throw new Error('DATABASE_URL no es una conexión PostgreSQL válida con una base explícita.');
+  }
+  return { url, database, environment, instanceId: instanceId.toLowerCase() };
+}
+
+async function getSharedClient(): Promise<PoolClient> {
+  const settings = sharedSettings();
+  const previous = global._sharedCanonicalPg;
+  if (!previous || Object.keys(settings).some((key) =>
+    previous.settings[key as keyof SharedDatabaseSettings] !== settings[key as keyof SharedDatabaseSettings])) {
+    global._sharedCanonicalPg = {
+      settings,
+      pool: new Pool({
+        connectionString: settings.url,
+        application_name: 'shared_canonical_application',
+        options: '-c timezone=America/Mexico_City -c search_path=public',
+        ssl: process.env.DB_REQUIRE_SSL === 'true'
+          ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' } : undefined,
+      }),
+    };
+    if (previous) void previous.pool.end();
+  }
+  const client = await global._sharedCanonicalPg!.pool.connect();
+  try {
+    // These are the only statements allowed before identity verification. They do not initialize schema.
+    const identity = await client.query<{ database: string; configuration: string | null }>(
+      "SELECT current_database() AS database,to_regclass('shared_runtime.configuration')::text AS configuration");
+    if (identity.rows.length !== 1 || identity.rows[0].database !== settings.database || !identity.rows[0].configuration) {
+      throw new Error('La base conectada no tiene la identidad y configuración compartida esperadas.');
+    }
+    const result = await client.query<{ version: number; environment: string; instance_id: string }>(
+      'SELECT version,environment,instance_id::text AS instance_id FROM shared_runtime.configuration WHERE singleton IS TRUE');
+    const actual = result.rows[0];
+    if (result.rows.length !== 1 || actual.version !== 1 || actual.environment !== settings.environment ||
+      actual.instance_id !== settings.instanceId) {
+      throw new Error('La versión, entorno o instancia de la base compartida no coincide con la configuración autorizada.');
+    }
+    if (actual.environment === 'production' && process.env.NODE_ENV !== 'production') {
+      throw new Error('El entorno de desarrollo no puede operar la base compartida de producción.');
+    }
+    return client;
+  } catch (error) {
+    client.release(true);
+    throw error;
+  }
+}
 
 // Only application reads convert NUMERIC to numbers and timestamps to strings.
 // The migration preserves the native PostgreSQL values independently.
@@ -40,6 +124,7 @@ function getPool(): Pool {
 }
 
 async function getClient(): Promise<PoolClient> {
+  if (process.env.SHARED_DATABASE_MODE === 'true') return getSharedClient();
   const client = await getPool().connect();
   try {
     const result = await client.query<{ database: string; runtime: string | null; application_id: string }>(

@@ -1,5 +1,7 @@
 import type { PoolClient } from 'pg';
 import { db, transaction } from '@/lib/db';
+import { sharedDatabaseEnabled } from './shared-database';
+import { sharedSales, sharedFindSale, sharedCreateSale, sharedCancelSale, sharedMarkInvoiced, sharedWarranties } from './shared-database-ventas';
 import type { Venta, VentaInput, VentaItem, VentaItemProducto, VentaItemServicio, FacturaInfo, BodegaId } from '@/types';
 import { generateId, getMexicoDateString } from '@/lib/utils/formatters';
 import { calcularImportePartida, calcularImportesVenta } from '@/lib/utils/iva';
@@ -70,6 +72,7 @@ export function adaptarVenta(row: VentaRow): Venta {
   };
 }
 export async function obtenerVentas(filtros?: { fechaInicio?: string; fechaFin?: string; incluirCanceladas?: boolean }): Promise<Venta[]> {
+  if (sharedDatabaseEnabled()) return sharedSales(filtros);
   await reconcileSharedStock();
   let sql = `${selectVenta} WHERE ${filtros?.incluirCanceladas ? 'true' : 'v.cancelada IS NOT TRUE'}`;
   const params: unknown[] = [];
@@ -98,16 +101,23 @@ async function adaptarDetalle(row: VentaRow): Promise<Venta> {
   return adaptarVenta(row);
 }
 export async function obtenerVenta(id: string): Promise<Venta | null> {
+  if (sharedDatabaseEnabled()) return sharedFindSale(id);
   await reconcileSharedStock();
   const row = (await db.query<VentaRow>(`${selectDetalle} WHERE v.id=$1`, [id])).rows[0];
   return row ? adaptarDetalle(row) : null;
 }
 export async function obtenerVentaFolio(folio: string): Promise<Venta | null> {
+  if (sharedDatabaseEnabled()) return sharedFindSale(folio, 'folio');
   await reconcileSharedStock();
   const row = (await db.query<VentaRow>(`${selectDetalle} WHERE v.folio=$1`, [folio])).rows[0];
   return row ? adaptarDetalle(row) : null;
 }
 export async function comprobarVentaEditable(client: PoolClient, id: string): Promise<void> {
+  if (sharedDatabaseEnabled()) {
+    const sale = await sharedFindSale(id, 'id', client);
+    if (!sale || sale.soloLecturaMigrada) throw new Error('El documento no admite modificaciones.');
+    return;
+  }
   if ((await client.query('SELECT 1 FROM migration_new_tires.imported_sales WHERE sale_id=$1', [id])).rowCount) {
     throw new Error('Esta venta es un historial migrado de solo lectura. No se puede modificar, facturar ni cancelar desde este sistema.');
   }
@@ -177,6 +187,7 @@ function prepareSale(input: VentaInput, dominioInterno: 'general' | 'sistema') {
 }
 /** dominioInterno is supplied by server wrappers, never read from submitted input. */
 export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 'sistema' = 'general'): Promise<Venta> {
+  if (sharedDatabaseEnabled()) return sharedCreateSale(input, dominioInterno);
   let prepared;
   try {
     prepared = prepareSale(input, dominioInterno);
@@ -257,6 +268,7 @@ export async function crearVenta(input: VentaInput, dominioInterno: 'general' | 
   });
 }
 export async function cancelarVenta(id: string, motivo: string): Promise<Venta | null> {
+  if (sharedDatabaseEnabled()) return sharedCancelSale(id, motivo);
   validarTexto(motivo, 'El motivo de cancelación', 10000);
   const shared = (await db.query<{ id: string }>('SELECT id FROM public.shared_stock_operations WHERE sale_id=$1', [id])).rows[0];
   const cancel = async (client: PoolClient) => {
@@ -286,6 +298,7 @@ export async function cancelarVenta(id: string, motivo: string): Promise<Venta |
   return shared ? withSharedStockCancellation(shared.id, cancel) : transaction(cancel);
 }
 export async function marcarFacturada(id: string, facturaInfo: FacturaInfo): Promise<Venta | null> {
+  if (sharedDatabaseEnabled()) return sharedMarkInvoiced(id, facturaInfo);
   validarTexto(facturaInfo.uuid, 'El UUID de factura', 100);
   validarTexto(facturaInfo.serie, 'La serie de factura', 20, false);
   validarTexto(facturaInfo.folio, 'El folio de factura', 50);
@@ -304,16 +317,23 @@ export async function marcarFacturada(id: string, facturaInfo: FacturaInfo): Pro
   });
 }
 export async function obtenerGarantiasActivas(): Promise<Venta[]> {
+  if (sharedDatabaseEnabled()) return sharedWarranties();
   await reconcileSharedStock();
   return (await db.query<VentaRow>(`${selectVenta} WHERE v.cancelada IS NOT TRUE AND v.garantia_activa=true
     AND v.garantia_fecha_fin >= $1::date ORDER BY v.garantia_fecha_fin,v.id`, [getMexicoDateString()])).rows.map(adaptarVenta);
 }
 export async function obtenerUltimoFolio(): Promise<number> {
+  if (sharedDatabaseEnabled()) {
+    const row = (await db.query<{ value: { ultimoFolio: number } }>("SELECT value FROM app_metadata WHERE key='general_ventas_seq'")).rows[0];
+    if (!row) throw new Error('Falta el consecutivo compartido de ventas.');
+    return Number(row.value.ultimoFolio);
+  }
   const row = (await db.query<{ value: { ultimoFolio: number } }>("SELECT value FROM app_metadata WHERE key='ventas_seq'")).rows[0];
   if (!row) throw new Error('Falta la secuencia de folios generales.');
   return Number(row.value.ultimoFolio);
 }
 export async function obtenerVentaPorGarantia(garantiaId: string): Promise<Venta | null> {
+  if (sharedDatabaseEnabled()) return garantiaId.trim() ? sharedFindSale(garantiaId.trim(), 'garantia') : null;
   await reconcileSharedStock();
   if (!garantiaId.trim()) return null;
   const row = (await db.query<VentaRow>(`${selectDetalle} WHERE UPPER(v.garantia_id)=UPPER($1)`, [garantiaId.trim()])).rows[0];

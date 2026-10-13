@@ -1,4 +1,6 @@
 import { db } from '@/lib/db';
+import { sharedDatabaseEnabled } from './shared-database';
+import { sharedTires, sharedTire, sharedMovements } from './shared-database-catalog';
 import { centralInventory, CENTRAL_SUPPLIER, assertCentralSupplier } from '@/lib/central-inventory';
 import { reconcileSharedStock } from '@/lib/shared-stock';
 import type { Llanta, LlantaInput, LlantaSuggestion, BodegaId, MovimientoBodega } from '@/types';
@@ -14,6 +16,7 @@ function adaptCentral(row: LlantaRow): Llanta {
   return adaptarLlanta(row);
 }
 export async function obtenerInventarioSistema(filtros?: { incluirInactivos?: boolean }): Promise<Llanta[]> {
+  if (sharedDatabaseEnabled()) return sharedTires(filtros?.incluirInactivos);
   await reconcileSharedStock();
   const result = await centralInventory.query<LlantaRow>(`SELECT * FROM multi_inventory.llantas
     WHERE dominio=$1 AND upper(regexp_replace(btrim(proveedor),'[[:space:]]+',' ','g'))=$2
@@ -21,6 +24,7 @@ export async function obtenerInventarioSistema(filtros?: { incluirInactivos?: bo
   return result.rows.map(adaptCentral);
 }
 export async function obtenerLlantaSistema(id: string, incluirInactivos = false): Promise<Llanta | null> {
+  if (sharedDatabaseEnabled()) return sharedTire(id, incluirInactivos);
   await reconcileSharedStock();
   const row = (await centralInventory.query<LlantaRow>(`SELECT * FROM multi_inventory.llantas
     WHERE id=$1 AND dominio=$2 AND upper(regexp_replace(btrim(proveedor),'[[:space:]]+',' ','g'))=$3
@@ -64,6 +68,7 @@ export async function moverStockSistema(_llantaId: string, bodegaOrigen: BodegaI
   throw new Error(CENTRAL_MANAGEMENT_MESSAGE);
 }
 export async function obtenerMovimientosSistema(): Promise<MovimientoBodega[]> {
+  if (sharedDatabaseEnabled()) return sharedMovements();
   const ids = (await obtenerInventarioSistema({ incluirInactivos: true })).map((llanta) => llanta.id);
   if (!ids.length) return [];
   const result = await db.query<{ id: string; llanta_id: string; bodega_origen: BodegaId | null; bodega_destino: BodegaId | null;

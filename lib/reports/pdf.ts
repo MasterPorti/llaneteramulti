@@ -95,9 +95,12 @@ export async function createReportPdf(
 
   const perRow = Math.min(report.stats.length, report.orientation === 'portrait' ? 2 : report.stats.length > 4 ? 3 : 4);
   const gap = 3;
-  const cardWidth = perRow ? (contentWidth - gap * (perRow - 1)) / perRow : contentWidth;
-  for (let start = 0; start < report.stats.length; start += perRow) {
-    const stats = report.stats.slice(start, start + perRow);
+  const statRows = report.kind === 'ventas' && report.orientation === 'landscape' && report.stats.length === 7
+    ? [report.stats.slice(0, 3), report.stats.slice(3)]
+    : Array.from({ length: perRow ? Math.ceil(report.stats.length / perRow) : 0 }, (_, index) => report.stats.slice(index * perRow, (index + 1) * perRow));
+  for (const stats of statRows) {
+    const columns = report.stats.length === 7 && report.kind === 'ventas' ? stats.length : perRow;
+    const cardWidth = (contentWidth - gap * (columns - 1)) / columns;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     const labels = stats.map(stat => doc.splitTextToSize(pdfText(stat.label), cardWidth - 8) as string[]);

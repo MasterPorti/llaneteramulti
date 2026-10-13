@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
+    "dev:db": "node scripts/start-development-database.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -11,7 +12,8 @@
     "test:iva": "node --test scripts/iva.test.mjs scripts/migration/adapters-transactions.test.mjs",
     "test:pdf": "node --test scripts/reportes-pdf.test.mjs",
     "test:shared-stock": "node --test tests/shared-stock.test.mjs tests/shared-stock-postgres.test.mjs app/_components/pendingSale.test.mjs",
-    "migrate:new-tires": "node scripts/migrate-new-tires.mjs"
+    "migrate:new-tires": "node scripts/migrate-new-tires.mjs",
+    "test:shared-database": "node --test scripts/shared-database-guard.test.mjs scripts/shared-database-white.test.mjs scripts/shared-database/merge-plan.test.mjs scripts/shared-database/capture.test.mjs scripts/shared-database/production.test.mjs"
   },
   "dependencies": {
     "@types/jsbarcode": "^3.11.4",

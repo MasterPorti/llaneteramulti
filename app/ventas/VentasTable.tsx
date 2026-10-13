@@ -55,6 +55,9 @@ export function VentasTable({ ventas }: VentasTableProps) {
   const totalFiltrado = ventasFiltradas
     .filter((v) => !v.cancelada)
     .reduce((acc, v) => acc + Math.round(v.total * 100), 0) / 100;
+  const mostrarNewTires = ventas.some(v => v.importeNewTires !== undefined);
+  const totalNewTires = ventasFiltradas.filter(v => !v.cancelada)
+    .reduce((sum, v) => sum + Math.round((v.importeNewTires ?? 0) * 100), 0) / 100;
 
   const columns = [
     {
@@ -63,6 +66,7 @@ export function VentasTable({ ventas }: VentasTableProps) {
       render: (item: Venta) => (
         <span className="font-mono font-medium">
           {item.folio}
+          {item.storageKind === 'ventas_productos' && <span className="ml-2 font-sans text-xs text-gray-500">Productos</span>}
           {item.cancelada && <span className="ml-2 font-sans text-xs text-red-600">Cancelada</span>}
         </span>
       ),
@@ -112,6 +116,8 @@ export function VentasTable({ ventas }: VentasTableProps) {
       render: (item: Venta) => formatDateTime(item.fechaVenta),
     },
   ];
+  if (mostrarNewTires) columns.splice(6, 0, { key: 'importeNewTires', header: 'Importe New Tires',
+    render: (item: Venta) => <span>{formatCurrency(item.importeNewTires ?? 0)}</span> });
 
   return (
     <div>
@@ -165,6 +171,7 @@ export function VentasTable({ ventas }: VentasTableProps) {
           <span className="text-sm text-gray-500">
             <span className="font-medium text-gray-800">{ventasFiltradas.length}</span> ventas ·{' '}
             <span className="font-medium text-gray-800">{formatCurrency(totalFiltrado)}</span>
+            {mostrarNewTires && <span className="block text-xs">New Tires: {formatCurrency(totalNewTires)} · importe de partidas; sin repartir IVA</span>}
           </span>
           <DownloadPdfButton
             getReport={() => buildSalesReport(ventasFiltradas, { desde, hasta })}

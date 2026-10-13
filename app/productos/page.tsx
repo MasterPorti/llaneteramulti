@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Plus, Search, ShoppingBag, Minus } from 'lucide-react';
 import { PageHeader } from '@/components/layout';
 import { Card, CardBody, Badge } from '@/components/ui';
@@ -162,6 +163,7 @@ export default function ProductosPage() {
                 {productosFiltrados.map((producto) => (
                   <tr key={producto.id} className="hover:bg-gray-50">
                     <td>
+                      {producto.imagen && <Image src={producto.imagen} alt={producto.nombre} width={64} height={64} unoptimized className="mb-2 h-16 w-16 object-contain" />}
                       <p className="font-medium">{producto.nombre}</p>
                       {producto.descripcion && (
                         <p className="text-xs text-gray-500">{producto.descripcion}</p>

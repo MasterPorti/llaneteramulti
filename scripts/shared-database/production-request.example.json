@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "snapshotDirectory": "C:/REEMPLAZAR/auditoria-nueva-con-aplicaciones-detenidas",
+  "blackWorkspace": "C:/REEMPLAZAR/checkout-negro-revisado",
+  "whiteWorkspace": "C:/REEMPLAZAR/checkout-blanco-revisado",
+  "readinessFile": "C:/REEMPLAZAR/production-readiness.private.json",
+  "backupManifestFiles": {
+    "negra": "C:/REEMPLAZAR/negra-backup-manifest.json",
+    "blanca": "C:/REEMPLAZAR/blanca-backup-manifest.json"
+  },
+  "restorationProofFiles": {
+    "negra": "C:/REEMPLAZAR/negra-native-restore-proof.json",
+    "blanca": "C:/REEMPLAZAR/blanca-native-restore-proof.json"
+  },
+  "fullStateFiles": {
+    "negra": "C:/REEMPLAZAR/negra-full-state.json",
+    "blanca": "C:/REEMPLAZAR/blanca-full-state.json"
+  },
+  "pgDumpFile": "C:/REEMPLAZAR/bin/pg_dump.exe",
+  "permissionsFile": "C:/REEMPLAZAR/checkout-negro-revisado/database/shared/white-role-permissions.sql"
+}

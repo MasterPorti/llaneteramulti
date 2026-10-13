@@ -1,6 +1,8 @@
 import type { BodegaId } from './inventario';
 
 export interface VentaItemProducto {
+  esNewTires?: boolean;
+  proveedorSnapshot?: string | null;
   tipo: 'producto';
   tipoOriginal?: 'producto' | 'servicio' | 'catalogo' | 'extra';
   llantaId: string;
@@ -19,6 +21,8 @@ export interface VentaItemProducto {
 }
 
 export interface VentaItemServicio {
+  esNewTires?: boolean;
+  proveedorSnapshot?: string | null;
   tipo: 'servicio';
   tipoOriginal?: 'producto' | 'servicio' | 'catalogo' | 'extra';
   servicioId: string;
@@ -57,6 +61,9 @@ export interface FacturaInfo {
 }
 
 export interface Venta {
+  storageKind?: 'ventas' | 'ventas_productos';
+  /** Recorded gross amount of classified New Tires lines, never allocated tax. */
+  importeNewTires?: number;
   ivaPolitica?: 'incluido_16' | null;
   soloLecturaMigrada?: boolean;
   datosOriginales?: Record<string, unknown>;

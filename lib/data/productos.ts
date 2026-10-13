@@ -1,4 +1,6 @@
 import { db, transaction } from '@/lib/db';
+import { sharedDatabaseEnabled } from './shared-database';
+import { sharedProducts, sharedProduct, sharedCreateProduct, sharedUpdateProduct, sharedAdjustProduct, sharedDeleteCatalog } from './shared-database-catalog';
 import type { Producto, ProductoInput } from '@/types';
 import { generateId } from '@/lib/utils/formatters';
 import { calcularImportePartida } from '@/lib/utils/iva';
@@ -15,9 +17,11 @@ export function adaptarProducto(row: ProductoRow): Producto {
     stock: Number(row.stock), activo: row.activo === true, createdAt: row.created_at ?? '', updatedAt: row.updated_at ?? '' };
 }
 export async function obtenerProductos(): Promise<Producto[]> {
+  if (sharedDatabaseEnabled()) return sharedProducts();
   return (await db.query<ProductoRow>('SELECT * FROM productos WHERE activo=true ORDER BY nombre,id')).rows.map(adaptarProducto);
 }
 export async function obtenerProducto(id: string): Promise<Producto | null> {
+  if (sharedDatabaseEnabled()) return sharedProduct(id);
   const row = (await db.query<ProductoRow>('SELECT * FROM productos WHERE id=$1 AND activo=true', [id])).rows[0];
   return row ? adaptarProducto(row) : null;
 }
@@ -27,6 +31,7 @@ function validar(input: Partial<ProductoInput>) {
   for (const amount of [input.precio, input.precioCompra, input.precioVenta]) if (amount !== undefined) validarImporte(amount);
 }
 export async function crearProducto(input: ProductoInput): Promise<Producto> {
+  if (sharedDatabaseEnabled()) return sharedCreateProduct(input);
   validar(input);
   validarCantidad(input.cantidad, true);
   const venta = calcularImportePartida(input.precioVenta ?? input.precio, 1);
@@ -36,6 +41,7 @@ export async function crearProducto(input: ProductoInput): Promise<Producto> {
   return adaptarProducto(row);
 }
 export async function actualizarProducto(id: string, input: Partial<ProductoInput>): Promise<Producto | null> {
+  if (sharedDatabaseEnabled()) return sharedUpdateProduct(id, input);
   validar(input);
   return transaction(async (client) => {
     const current = (await client.query<ProductoRow>('SELECT * FROM productos WHERE id=$1 AND activo=true FOR UPDATE', [id])).rows[0];
@@ -50,6 +56,7 @@ export async function actualizarProducto(id: string, input: Partial<ProductoInpu
   });
 }
 export async function ajustarStockProducto(id: string, cantidad: number): Promise<Producto | null> {
+  if (sharedDatabaseEnabled()) return sharedAdjustProduct(id, cantidad);
   if (!Number.isSafeInteger(cantidad)) throw new Error('El ajuste debe ser entero.');
   return transaction(async (client) => {
     const current = (await client.query<ProductoRow>('SELECT * FROM productos WHERE id=$1 AND activo=true FOR UPDATE', [id])).rows[0];
@@ -62,5 +69,6 @@ export async function ajustarStockProducto(id: string, cantidad: number): Promis
   });
 }
 export async function eliminarProducto(id: string): Promise<boolean> {
+  if (sharedDatabaseEnabled()) return sharedDeleteCatalog('productos', id);
   return ((await db.query('UPDATE productos SET activo=false,updated_at=NOW() WHERE id=$1 AND activo=true', [id])).rowCount ?? 0) > 0;
 }

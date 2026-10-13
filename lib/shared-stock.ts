@@ -14,6 +14,7 @@ export class SharedStockReleasedError extends Error {
   readonly operationStatus = 'released' as const;
 }
 export function releasedOperationStatus(error: unknown): 'released' | undefined {
+  if (error instanceof Error && 'operationStatus' in error && error.operationStatus === 'released') return 'released';
   return error instanceof SharedStockReleasedError ? 'released' : undefined;
 }
 
@@ -112,6 +113,7 @@ export async function rejectUnstartedStockOperation(id: unknown, request: unknow
 
 /** Bounded opportunistic recovery; active sales retain their session locks. */
 export async function reconcileSharedStock(limit = 5): Promise<void> {
+  if (process.env.SHARED_DATABASE_MODE === 'true') return;
   const pending = await db.query<{ id: string }>(`SELECT id FROM public.shared_stock_operations
     WHERE status IN ('intent','reserved','local_committed','release_pending') ORDER BY updated_at,id LIMIT $1`, [limit]);
   for (const { id } of pending.rows) {

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "createdAt": "REEMPLAZAR_POR_FECHA_REAL_ISO",
+  "fiscalMode": "recorded-per-application",
+  "productionInstanceId": "GENERAR_NUEVO_UUID_V4",
+  "developmentInstanceIds": ["COPIAR_UUID_REAL_DE_DESARROLLO"],
+  "pgDumpSha256": "SHA256_REAL_DEL_EJECUTABLE_REVISADO",
+  "runtimeRoles": {
+    "negra": "ROL_NEGRO_EXISTENTE_CONFIRMADO",
+    "blanca": "llantera_multi_stock"
+  },
+  "privilegeChange": {
+    "role": "llantera_multi_stock",
+    "reviewed": false,
+    "sqlSha256": "SHA256_REAL_DEL_PAYLOAD_REVISADO"
+  },
+  "identities": {
+    "negra": {
+      "host": "72.62.83.230",
+      "port": 7453,
+      "database": "postgres",
+      "databaseOid": "COPIAR_OID_OBSERVADO",
+      "owner": "COPIAR_OWNER_OBSERVADO",
+      "sessionUser": "COPIAR_SESSION_USER_OBSERVADO",
+      "systemIdentifier": "COPIAR_SYSTEM_IDENTIFIER_OBSERVADO"
+    },
+    "blanca": {
+      "host": "72.62.83.230",
+      "port": 12458,
+      "database": "postgres",
+      "databaseOid": "COPIAR_OID_OBSERVADO",
+      "owner": "COPIAR_OWNER_OBSERVADO",
+      "sessionUser": "COPIAR_SESSION_USER_OBSERVADO",
+      "systemIdentifier": "COPIAR_SYSTEM_IDENTIFIER_OBSERVADO"
+    }
+  },
+  "reviewedRestorationLimitations": {
+    "negra": [],
+    "blanca": []
+  },
+  "maintenance": {
+    "windowId": "GENERAR_UUID_REAL_DE_VENTANA",
+    "startedAt": "FECHA_REAL_DE_DETENCION_Y_AISLAMIENTO",
+    "newConnectionsFenced": false,
+    "fenceEvidence": "",
+    "applications": {
+      "negra": { "stopped": false, "resourceId": "RECURSO_COOLIFY_CONFIRMADO", "deployedCommit": "SHA40_DESPLEGADO" },
+      "blanca": { "stopped": false, "resourceId": "RECURSO_COOLIFY_CONFIRMADO", "deployedCommit": "SHA40_DESPLEGADO" }
+    }
+  }
+}

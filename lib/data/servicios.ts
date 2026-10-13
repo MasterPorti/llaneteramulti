@@ -1,4 +1,6 @@
 import { db, transaction } from '@/lib/db';
+import { sharedDatabaseEnabled } from './shared-database';
+import { sharedServices, sharedService, sharedSaveService, sharedDeleteCatalog } from './shared-database-catalog';
 import type { Servicio, ServicioInput } from '@/types';
 import { generateId } from '@/lib/utils/formatters';
 import { calcularImportePartida } from '@/lib/utils/iva';
@@ -16,13 +18,16 @@ export function adaptarServicio(row: ServicioRow): Servicio {
 
 // Reading an empty catalog never creates synthetic services.
 export async function obtenerServicios(): Promise<Servicio[]> {
+  if (sharedDatabaseEnabled()) return sharedServices();
   return (await db.query<ServicioRow>('SELECT * FROM servicios WHERE activo=true ORDER BY created_at ASC,id')).rows.map(adaptarServicio);
 }
 export async function obtenerServicio(id: string): Promise<Servicio | null> {
+  if (sharedDatabaseEnabled()) return sharedService(id);
   const row = (await db.query<ServicioRow>('SELECT * FROM servicios WHERE id=$1 AND activo=true', [id])).rows[0];
   return row ? adaptarServicio(row) : null;
 }
 export async function obtenerServicioPorCodigo(codigoBarras: string): Promise<Servicio | null> {
+  if (sharedDatabaseEnabled()) return sharedService(codigoBarras, true);
   const row = (await db.query<ServicioRow>('SELECT * FROM servicios WHERE codigo_barras=$1 AND activo=true', [codigoBarras])).rows[0];
   return row ? adaptarServicio(row) : null;
 }
@@ -32,6 +37,7 @@ function validar(input: Partial<ServicioInput>) {
   if (input.precioDefault !== undefined) validarImporte(input.precioDefault);
 }
 export async function crearServicio(input: ServicioInput): Promise<Servicio> {
+  if (sharedDatabaseEnabled()) return (await sharedSaveService(null, input))!;
   validar(input);
   return transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(73628109)');
@@ -51,6 +57,7 @@ export async function crearServicio(input: ServicioInput): Promise<Servicio> {
   });
 }
 export async function actualizarServicio(id: string, input: Partial<ServicioInput>): Promise<Servicio | null> {
+  if (sharedDatabaseEnabled()) return sharedSaveService(id, input);
   validar(input);
   return transaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(73628109)');
@@ -68,8 +75,10 @@ export async function actualizarServicio(id: string, input: Partial<ServicioInpu
   });
 }
 export async function eliminarServicio(id: string): Promise<boolean> {
+  if (sharedDatabaseEnabled()) return sharedDeleteCatalog('servicios', id);
   return ((await db.query('UPDATE servicios SET activo=false,updated_at=NOW() WHERE id=$1 AND activo=true', [id])).rowCount ?? 0) > 0;
 }
 export async function buscarServicios(termino: string): Promise<Servicio[]> {
+  if (sharedDatabaseEnabled()) return sharedServices(termino);
   return (await db.query<ServicioRow>('SELECT * FROM servicios WHERE activo=true AND (nombre ILIKE $1 OR descripcion ILIKE $1) ORDER BY nombre,id', [`%${termino}%`])).rows.map(adaptarServicio);
 }
