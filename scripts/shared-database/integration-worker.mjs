@@ -7,7 +7,8 @@ import { createRequire } from 'node:module';
 const root = process.env.SHARED_TEST_WORKTREE;
 if (!root || !process.send || process.env.NODE_ENV !== 'development') throw new Error('Use the integration test runner.');
 const url = new URL(process.env.DATABASE_URL);
-if (url.hostname !== '127.0.0.1' || url.pathname !== '/llantas_shared_tests'
+if (url.hostname !== '127.0.0.1' || url.port !== '55439' || url.pathname !== '/llantas_shared_tests'
+  || process.env.SHARED_DATABASE_ID !== '2a290d83-a9e5-44e4-8fcb-8d260baeaa14'
   || process.env.SHARED_DATABASE_ENVIRONMENT !== 'development' || process.env.SHARED_DATABASE_MODE !== 'true') {
   throw new Error('The integration worker only accepts the isolated local test database.');
 }
@@ -100,13 +101,43 @@ async function dispatch(message) {
       ? data('inventario').ajustarStock(id, 'bodega-1', input.delta)
       : data('sistema-inventario').ajustarStockSistema(id, 'bodega-1', input.delta);
     if (operation === 'cancel') return successful(await data('sistema-ventas').cancelarVentaSistema(id, reason));
-    if (operation === 'get') return data('sistema-ventas').obtenerVentaSistema(id);
+    if (operation === 'get') {
+      if (message.by === 'folio') return data('sistema-ventas').obtenerVentaPorFolio(id);
+      if (message.by === 'garantia') {
+        const result = await data('sistema-ventas').buscarGarantiaPorId(id);
+        return result.success ? result.data.venta : null;
+      }
+      return data('sistema-ventas').obtenerVentaSistema(id);
+    }
+    if (operation === 'get-general') return data('ventas').obtenerVenta(id);
+    if (operation === 'get-product') return data('ventas-productos').obtenerVentaProducto(id);
+    if (operation === 'cancel-general') return data('ventas').cancelarVenta(id, reason);
+    if (operation === 'invoice-general') return data('ventas').marcarFacturada(id, input);
     if (operation === 'catalog') return {
       tires: (await data('sistema-inventario').obtenerInventarioSistema()).filter(row => ids.includes(row.id)),
       products: (await data('productos').obtenerProductos()).filter(row => ids.includes(row.id)),
       services: (await data('servicios').obtenerServicios()).filter(row => ids.includes(row.id)),
     };
     if (operation === 'history') return (await data('sistema-ventas').obtenerVentasSistema()).filter(row => ids.includes(row.id));
+    if (operation === 'finance-history') return (await load(path.join(root, 'lib/integrations/finance-sales')).listFinanceSales(500))
+      .filter(row => ids.includes(row.sourceId));
+    if (operation === 'all-public-history') {
+      const system = data('sistema-ventas'), general = data('ventas'), products = data('ventas-productos');
+      // listFinanceSales is a local database projection. This worker never calls
+      // the external financial application, its API, or its deployment.
+      const finance = load(path.join(root, 'lib/integrations/finance-sales'));
+      const [systemSales, generalSales, productSales, financialSales, systemWarranties, generalWarranties, summary] = await Promise.all([
+        system.obtenerVentasSistema(), general.obtenerVentas(), products.listarVentasProductos(500), finance.listFinanceSales(500),
+        system.obtenerGarantiasActivas(), general.obtenerGarantiasActivas(), system.obtenerResumenVentas(),
+      ]);
+      return {
+        system: systemSales.filter(row => ids.includes(row.id)), general: generalSales.filter(row => ids.includes(row.id)),
+        products: productSales.filter(row => ids.includes(row.id)), finance: financialSales.filter(row => ids.includes(row.sourceId)),
+        systemWarranties: systemWarranties.filter(row => ids.includes(row.venta.id)),
+        generalWarranties: generalWarranties.filter(row => ids.includes(row.id)),
+        summary: summary.ventas.filter(row => ids.includes(row.id)),
+      };
+    }
     if (operation === 'fiscal-history') return (await data('sistema-ventas').obtenerVentasSistema()).filter(row => ids.includes(row.id))
       .map(({ id, folio, subtotal, iva, total, cancelada }) => ({ id, folio, subtotal, iva, total, cancelada }));
   }

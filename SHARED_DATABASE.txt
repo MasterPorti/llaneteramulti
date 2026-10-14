@@ -12,7 +12,8 @@ VISIBILIDAD Y DOCUMENTOS
 - Sin reinicio configurado, la blanca conserva la visibilidad historica anterior:
   documentos con partidas New Tires y ventas sin llantas de ambas aplicaciones.
 - Con WHITE_SALES_HISTORY_RESET, muestra solo ventas creadas por la blanca que
-  no estaban confirmadas en el snapshot del reinicio. La negra conserva su historial.
+  no estaban confirmadas en el snapshot del reinicio. La negra conserva el historial
+  anterior y excluye las ventas blancas nuevas usando el mismo manifiesto privado.
 - Un ticket mixto conserva todas sus partidas, subtotal, IVA y total registrados.
 - El inventario blanco y su PDF omiten llantas agotadas sin borrarlas ni cambiar
   sus existencias. Vuelven a aparecer cuando reciben stock.
@@ -63,6 +64,9 @@ modulo originales sin descontar stock otra vez. El cambio solo afecta la vista.
 Quitar la variable restaura la visibilidad anterior; nunca restaurar un dump ni
 repetir una captura para ocultar ventas nuevas como parte de un redespliegue.
 Cada entorno necesita su propio manifiesto y evidencia privada del reinicio.
+La negra usa el mismo valor dentro de cada entorno para excluir ventas blancas
+nuevas por (tabla, id), sin filtrar el inventario ni repetir el reinicio. Conserva
+todas las ventas anteriores y su integracion financiera canonica existente.
 
 DESARROLLO
 La base de desarrollo es una instancia distinta de PostgreSQL, con volumen y
