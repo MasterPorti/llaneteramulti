@@ -244,12 +244,13 @@ export default function BodegasPage() {
                       {productos.slice(0, 3).map((llanta) => (
                         <div
                           key={llanta.id}
-                          className="flex items-center justify-between text-sm p-2 rounded bg-[var(--bg-tertiary)]"
+                          className="flex items-start justify-between gap-2 text-sm p-2 rounded bg-[var(--bg-tertiary)]"
                         >
-                          <span className="truncate mr-2">
+                          <span className="min-w-0 flex-1 whitespace-normal [overflow-wrap:anywhere]">
                             {llanta.marca} {llanta.modelo}
                           </span>
                           <Badge
+                            className="shrink-0"
                             variant={
                               llanta.stockPorBodega[bodega.id] > 5
                                 ? 'success'

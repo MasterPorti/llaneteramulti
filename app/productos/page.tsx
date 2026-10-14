@@ -10,6 +10,7 @@ import { DownloadPdfButton } from '@/components/ui/DownloadPdfButton';
 import { obtenerProductos, ajustarStock, eliminarProducto } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { buildProductsReport } from '@/lib/reports/data';
+import { filtrarProductos } from './producto-search';
 import type { Producto } from '@/types';
 
 export default function ProductosPage() {
@@ -43,14 +44,7 @@ export default function ProductosPage() {
     loadProductos();
   }, [loadProductos]);
 
-  const productosFiltrados = productos.filter((p) => {
-    if (!busqueda.trim()) return true;
-    const term = busqueda.toLowerCase();
-    return (
-      p.nombre.toLowerCase().includes(term) ||
-      (p.descripcion && p.descripcion.toLowerCase().includes(term))
-    );
-  });
+  const productosFiltrados = filtrarProductos(productos, busqueda);
 
   const handleAjustar = async (id: string, delta: number, stockActual: number) => {
     if (busyProducts.current.has(id) || (delta < 0 && stockActual + delta < 0)) return;
@@ -146,14 +140,18 @@ export default function ProductosPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
-            type="text"
+            type="search"
             className="input"
             style={{ paddingLeft: '2.5rem' }}
             placeholder="Buscar por nombre o descripción..."
+            aria-label="Buscar productos por nombre o descripción"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
+        <p className="mt-2 text-sm text-gray-500" role="status">
+          {productosFiltrados.length} de {productos.length} productos
+        </p>
       </div>
 
       {productosFiltrados.length === 0 ? (
@@ -178,26 +176,27 @@ export default function ProductosPage() {
         </Card>
       ) : (
         <Card>
-          <CardBody className="p-0 overflow-x-auto">
+          <CardBody className="p-0">
+            <div className="max-h-[min(65vh,40rem)] overflow-auto overscroll-contain" role="region" aria-label="Catálogo de productos" tabIndex={0}>
             <table className="table">
               <thead>
                 <tr>
-                  <th>Producto</th>
-                  <th>Precio de venta</th>
-                  <th>Costo de compra</th>
-                  <th>Stock</th>
-                  <th>Ajustar</th>
-                  <th>Acciones</th>
+                  <th className="sticky top-0 z-10">Producto</th>
+                  <th className="sticky top-0 z-10">Precio de venta</th>
+                  <th className="sticky top-0 z-10">Costo de compra</th>
+                  <th className="sticky top-0 z-10">Stock</th>
+                  <th className="sticky top-0 z-10">Ajustar</th>
+                  <th className="sticky top-0 z-10">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {productosFiltrados.map((producto) => (
                   <tr key={producto.id} className="hover:bg-gray-50">
-                    <td>
+                    <td className="min-w-[12rem] max-w-sm">
                       {producto.imagen && <Image src={producto.imagen} alt={producto.nombre} width={64} height={64} unoptimized className="mb-2 h-16 w-16 object-contain" />}
-                      <p className="font-medium">{producto.nombre}</p>
+                      <p className="font-medium whitespace-normal [overflow-wrap:anywhere]">{producto.nombre}</p>
                       {producto.descripcion && (
-                        <p className="text-xs text-gray-500">{producto.descripcion}</p>
+                        <p className="text-xs text-gray-500 whitespace-normal [overflow-wrap:anywhere]">{producto.descripcion}</p>
                       )}
                     </td>
                     <td>{formatCurrency(producto.precioVenta ?? producto.precio)}</td>
@@ -260,6 +259,7 @@ export default function ProductosPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </CardBody>
         </Card>
       )}

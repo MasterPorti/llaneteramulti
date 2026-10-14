@@ -152,15 +152,15 @@ export function SearchBar({ servicios = [] }: SearchBarProps) {
                 <button
                   key={producto.id}
                   onClick={() => handleProductClick(producto)}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                  className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-b border-gray-100 last:border-b-0"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">
+                  <div className="min-w-0 flex-1 basis-40">
+                    <p className="text-sm font-medium text-gray-800 whitespace-normal [overflow-wrap:anywhere]">
                       {producto.marca} {producto.modelo}{' '}
                       <span className="text-gray-500">- {producto.medida}</span>
                     </p>
                   </div>
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                  <div className="flex shrink-0 items-center gap-4 text-xs text-gray-500">
                     <span>Stock: {producto.stockTotal}</span>
                     <span className="font-medium text-gray-700">
                       ${producto.precioVenta.toLocaleString('es-MX', {
@@ -182,14 +182,14 @@ export function SearchBar({ servicios = [] }: SearchBarProps) {
               {serviciosFiltrados.map((servicio) => (
                 <div
                   key={servicio.id}
-                  className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                  className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-b border-gray-100 last:border-b-0"
                 >
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">
+                  <div className="min-w-0 flex-1 basis-40">
+                    <p className="text-sm font-medium text-gray-800 whitespace-normal [overflow-wrap:anywhere]">
                       {servicio.nombre}
                     </p>
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="shrink-0 text-xs text-gray-500">
                     <span className="font-medium text-gray-700">
                       ${servicio.precioDefault.toLocaleString('es-MX', {
                         minimumFractionDigits: 2,

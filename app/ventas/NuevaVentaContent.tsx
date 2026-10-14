@@ -23,6 +23,7 @@ import { useInventoryRefresh } from '@/app/_components/useInventoryRefresh';
 import { obtenerInventario } from '@/app/llantas/actions';
 import { obtenerServicios } from '@/app/servicios/actions';
 import { obtenerProductos } from '@/app/productos/actions';
+import { filtrarProductos } from '@/app/productos/producto-search';
 import { crearVenta } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { calcularImportesVenta, calcularImportePartida } from '@/lib/utils/iva';
@@ -84,6 +85,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   const [inventario, setInventario] = useState<Llanta[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [catalogoProductos, setCatalogoProductos] = useState<Producto[]>([]);
+  const [busquedaProductos, setBusquedaProductos] = useState('');
   const [dataLoading, setDataLoading] = useState(true);
 
   // Tab
@@ -115,6 +117,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
   const [lastScannedService, setLastScannedService] = useState<string | null>(null);
   const barcodeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const barcodeBufferRef = useRef('');
+  const productosFiltrados = filtrarProductos(catalogoProductos, busquedaProductos);
 
   const { loading: inventoryLoading, error: inventoryError } = useInventoryRefresh(
     obtenerInventario,
@@ -576,7 +579,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       {inventoryError && <p role="status" className="mb-4 text-amber-700">{inventoryError}</p>}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="min-w-0 lg:col-span-2 space-y-6">
           {/* Tabs */}
           <div className="card">
             <div className="flex border-b">
@@ -654,11 +657,11 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           onClick={() => addServiceToCart(servicio)}
                           className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-left group"
                         >
-                          <div className="flex items-center gap-2 mb-2">
-                            <Wrench className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium text-sm">{servicio.nombre}</span>
+                          <div className="flex items-start min-w-0 gap-2 mb-2">
+                            <Wrench className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-blue-500" />
+                            <span className="min-w-0 font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">{servicio.nombre}</span>
                           </div>
-                          <p className="text-xs text-gray-500 mb-1 line-clamp-2">{servicio.descripcion}</p>
+                          <p className="text-xs text-gray-500 mb-1 whitespace-normal [overflow-wrap:anywhere]">{servicio.descripcion}</p>
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-bold text-blue-600">
                               {formatCurrency(servicio.precioDefault)}
@@ -676,6 +679,23 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
               {/* Productos Tab (catalog) */}
               {activeTab === 'productos' && (
                 <div className="space-y-4">
+                  <div>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="search"
+                        className="input"
+                        style={{ paddingLeft: '2.5rem' }}
+                        placeholder="Buscar productos por nombre o descripción..."
+                        aria-label="Buscar productos para la venta"
+                        value={busquedaProductos}
+                        onChange={(event) => setBusquedaProductos(event.target.value)}
+                      />
+                    </div>
+                    <p className="mt-2 text-sm text-gray-500" role="status">
+                      {productosFiltrados.length} de {catalogoProductos.length} productos
+                    </p>
+                  </div>
                   {catalogoProductos.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                       <ShoppingBag className="w-10 h-10 mx-auto mb-2 opacity-50" />
@@ -684,9 +704,17 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                         Agregar productos
                       </a>
                     </div>
+                  ) : productosFiltrados.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No se encontraron productos para &quot;{busquedaProductos}&quot;.</p>
+                      <button type="button" className="btn btn-secondary btn-sm mt-3" onClick={() => setBusquedaProductos('')}>
+                        Limpiar búsqueda
+                      </button>
+                    </div>
                   ) : (
+                    <div className="max-h-96 overflow-y-auto overscroll-contain pr-1" role="region" aria-label="Productos disponibles para seleccionar" tabIndex={0}>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {catalogoProductos.map((producto) => {
+                      {productosFiltrados.map((producto) => {
                         const enCarrito = cartItems
                           .filter((i) => i.tipo === 'catalogo' && i.id === producto.id)
                           .reduce((s, i) => s + i.cantidad, 0);
@@ -703,12 +731,12 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                                 : 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
                             }`}
                           >
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-start min-w-0 gap-2 mb-1">
                               <ShoppingBag className="w-4 h-4 text-gray-400 group-hover:text-orange-500 shrink-0" />
-                              <span className="font-medium text-sm line-clamp-1">{producto.nombre}</span>
+                              <span className="min-w-0 font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">{producto.nombre}</span>
                             </div>
                             {producto.descripcion && (
-                              <p className="text-xs text-gray-500 mb-1 line-clamp-1">{producto.descripcion}</p>
+                              <p className="text-xs text-gray-500 mb-1 whitespace-normal [overflow-wrap:anywhere]">{producto.descripcion}</p>
                             )}
                             <div className="flex items-center justify-between mt-2">
                               <p className="text-sm font-bold text-orange-600">
@@ -723,6 +751,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                           </button>
                         );
                       })}
+                    </div>
                     </div>
                   )}
                 </div>
@@ -750,12 +779,12 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                   {/* Selected Llanta Info */}
                   {productoSeleccionado && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-semibold text-blue-900">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-blue-900 whitespace-normal [overflow-wrap:anywhere]">
                             {productoSeleccionado.marca} {productoSeleccionado.modelo}
                           </h4>
-                          <p className="text-sm text-blue-700">{productoSeleccionado.medida}</p>
+                          <p className="text-sm text-blue-700 whitespace-normal [overflow-wrap:anywhere]">{productoSeleccionado.medida}</p>
                           <p className="text-lg font-bold text-blue-800 mt-1">
                             {formatCurrency(productoSeleccionado.precioVenta)}
                           </p>
@@ -849,13 +878,13 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                                 : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
                             }`}
                           >
-                            <div className="flex items-center gap-1.5 mb-1">
+                            <div className="flex items-start min-w-0 gap-1.5 mb-1">
                               <Package className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-500' : 'text-gray-400 group-hover:text-blue-500'}`} />
-                              <span className="font-medium text-sm line-clamp-1">
+                              <span className="min-w-0 font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">
                                 {llanta.marca} {llanta.modelo}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-500 font-mono mb-2">{llanta.medida}</p>
+                            <p className="text-xs text-gray-500 font-mono mb-2 whitespace-normal [overflow-wrap:anywhere]">{llanta.medida}</p>
                             <div className="flex items-center justify-between">
                               <p className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-blue-600'}`}>
                                 {formatCurrency(llanta.precioVenta)}
@@ -916,7 +945,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
         </div>
 
         {/* RIGHT COLUMN: Payment, Summary */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Payment Method */}
           <div className="card">
             <div className="card-header">
@@ -986,7 +1015,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                   {cartItems.map((item, index) => (
                     <div
                       key={`${item.tipo}-${item.id}-${index}`}
-                      className="flex items-center gap-3 p-3"
+                      className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 p-3"
                     >
                       {/* Icon */}
                       <div className={`p-1.5 rounded shrink-0 ${
@@ -1006,22 +1035,23 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                       <div className="flex-1 min-w-0">
                         {item.tipo === 'producto' ? (
                           <>
-                            <p className="font-medium text-sm">
+                            <p className="font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">
                               {item.llanta.marca}{' '}{item.llanta.modelo}
                             </p>
-                            <p className="text-xs text-gray-500">{BODEGAS.find((b) => b.id === item.bodega)?.nombre}</p>
+                            <p className="text-xs text-gray-500 whitespace-normal [overflow-wrap:anywhere]">{item.llanta.medida} · {BODEGAS.find((b) => b.id === item.bodega)?.nombre}</p>
                           </>
                         ) : item.tipo === 'catalogo' ? (
-                          <p className="font-medium text-sm">{(item as CartItemCatalogo).producto.nombre}</p>
+                          <p className="font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">{(item as CartItemCatalogo).producto.nombre}</p>
                         ) : item.tipo === 'extra' ? (
-                          <p className="font-medium text-sm">{(item as CartItemExtra).nombre}</p>
+                          <p className="font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">{(item as CartItemExtra).nombre}</p>
                         ) : (
-                          <p className="font-medium text-sm">
+                          <p className="font-medium text-sm whitespace-normal [overflow-wrap:anywhere]">
                             {(item as CartItemServicio).servicio.nombre}
                           </p>
                         )}
                       </div>
 
+                      <div className="col-span-2 flex flex-wrap items-center justify-end gap-3">
                       {/* Quantity controls */}
                       <div className="flex items-center gap-1 shrink-0">
                         <button
@@ -1085,6 +1115,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
+                      </div>
                     </div>
                   ))}
                 </div>
