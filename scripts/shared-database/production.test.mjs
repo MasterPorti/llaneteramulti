@@ -4,9 +4,10 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EventEmitter } from 'node:events';
 import { validateConnection, fresh, assertIdentity, assertMaintenance, assertRecordedMoney, assertTransactionSafeSql,
   assertNoOtherClients, verifySource, GuardError } from './production-guards.mjs';
-import { runCutover, commitOnce, confirmExecution, main } from './install-production.mjs';
+import { runCutover, commitOnce, confirmExecution, main, monitorClient, keepTransactionsAlive } from './install-production.mjs';
 import { verify } from './install-core.mjs';
 import { sha256 } from './merge-plan.mjs';
 
@@ -147,6 +148,57 @@ test('commitOnce reports ambiguous transport without a second statement', async 
   const sql = [];
   await assert.rejects(commitOnce({ query: async text => { sql.push(text); throw Error('may contain credentials'); } }), /COMMIT_OUTCOME_UNKNOWN/);
   assert.deepEqual(sql, ['COMMIT']);
+});
+
+test('idle-client asynchronous errors are captured without an unhandled event or secret output', () => {
+  const client = new EventEmitter(), monitor = monitorClient(client);
+  assert.equal(monitorClient(client), monitor);
+  assert.doesNotThrow(() => client.emit('error', Object.assign(Error('private connection detail'), { code: '25P03' })));
+  assert.throws(() => monitor.assertHealthy(), error => error instanceof GuardError
+    && error.code === 'DATABASE_SESSION_FAILED_BEFORE_CONFIRMED_COMMIT_USE_STATUS'
+    && !error.message.includes('private'));
+});
+
+test('keepalive bounds queued probes, drains before stop and sends no query after stop', async () => {
+  let tick, cancelled = 0, resolveQuery;
+  const calls = [], client = { query: sql => { calls.push(sql); return new Promise(resolve => { resolveQuery = resolve; }); } };
+  const heartbeat = keepTransactionsAlive([client], { schedule: (callback, delay) => { tick = callback; assert.equal(delay, 30000); return 7; }, cancel: id => { assert.equal(id, 7); cancelled++; } });
+  tick(); tick(); await Promise.resolve();
+  assert.deepEqual(calls, ['SELECT 1 AS cutover_keepalive']);
+  let stopped = false; const stopping = heartbeat.stop().then(() => { stopped = true; });
+  await Promise.resolve(); assert.equal(stopped, false);
+  resolveQuery({ rows: [] }); await stopping;
+  tick(); await Promise.resolve(); assert.equal(calls.length, 1); assert.equal(cancelled, 1);
+  heartbeat.assertHealthy();
+});
+
+test('a failed keepalive aborts health checks rather than becoming an unhandled rejection', async () => {
+  let tick;
+  const heartbeat = keepTransactionsAlive([{ query: async () => { throw Error('secret'); } }], { schedule: callback => { tick = callback; }, cancel() {} });
+  tick(); await heartbeat.stop();
+  assert.throws(() => heartbeat.assertHealthy(), /DATABASE_SESSION_FAILED/);
+});
+
+test('white async session loss during target installation rolls back black before COMMIT', async () => {
+  const fixture = cutoverFixture();
+  const whiteEvents = new EventEmitter(); fixture.white.on = whiteEvents.on.bind(whiteEvents);
+  const install = fixture.steps.applyInstallation;
+  fixture.steps.applyInstallation = async (...args) => { await install(...args); whiteEvents.emit('error', Object.assign(Error('idle transaction'), { code: '25P03' })); };
+  await assert.rejects(runFixture(fixture), /DATABASE_SESSION_FAILED/);
+  assert.equal(fixture.mutated, false); assert.equal(fixture.durable, false);
+  assert(fixture.log.includes('black:ROLLBACK')); assert(!fixture.log.includes('black:COMMIT'));
+  assert(fixture.log.includes("white:SET LOCAL idle_in_transaction_session_timeout='180s'"));
+  assert(fixture.log.includes("white:SET LOCAL transaction_timeout='15min'"));
+});
+
+test('async black error at COMMIT preserves unknown outcome and never retries', async () => {
+  const fixture = cutoverFixture();
+  const events = new EventEmitter(); fixture.black.on = events.on.bind(events);
+  const query = fixture.black.query;
+  fixture.black.query = async sql => { const result = await query(sql); if (sql === 'COMMIT') { events.emit('error', Error('connection lost')); throw Error('ack lost'); } return result; };
+  await assert.rejects(runFixture(fixture), /COMMIT_OUTCOME_UNKNOWN/);
+  assert.equal(fixture.durable, true); assert.equal(fixture.log.filter(item => item === 'black:COMMIT').length, 1);
+  assert(!fixture.log.includes('black:ROLLBACK'));
 });
 test('CLI cannot silently discover connection/env files or accept unknown arguments', async () => {
   await assert.rejects(main(['execute']), /EXPLICIT_REQUEST_FILE/);

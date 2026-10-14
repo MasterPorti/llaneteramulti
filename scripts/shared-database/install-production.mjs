@@ -13,6 +13,43 @@ const resultSummary = bundle => ({ planSha256: bundle.installation.digest, packa
   batch: bundle.installation.batch, counts: bundle.installation.plan.summary.counts,
   productionInstanceId: bundle.readiness?.productionInstanceId, database: 'postgres', environment: 'production' });
 const cutoverSteps = { databaseIdentity, assertIdentity, assertNoOtherClients, assertExistingRoles, lockTables, verifySource, applyInstallation, verify };
+const monitoredClients = new WeakMap();
+export function monitorClient(client) {
+  if (monitoredClients.has(client)) return monitoredClients.get(client);
+  let failure;
+  const failed = () => { failure ??= new GuardError('DATABASE_SESSION_FAILED_BEFORE_CONFIRMED_COMMIT_USE_STATUS'); };
+  // pg emits errors on idle connections outside a query promise. Keep this
+  // listener for the client's entire lifetime, including asynchronous end().
+  client.on?.('error', failed);
+  const monitor = { failed, assertHealthy() { if (failure) throw failure; } };
+  monitoredClients.set(client, monitor);
+  return monitor;
+}
+export function keepTransactionsAlive(clients, timers = { schedule: setInterval, cancel: clearInterval }) {
+  let stopped = false;
+  const pending = new Set();
+  const entries = clients.map(client => ({ client, monitor: monitorClient(client), pending: false }));
+  const tick = () => {
+    if (stopped) return;
+    for (const entry of entries) {
+      if (entry.pending) continue;
+      entry.pending = true;
+      // pg serializes queries on each connection. At most one heartbeat per
+      // client may wait behind a long statement; it never reads/writes data.
+      const request = Promise.resolve().then(() => {
+        entry.monitor.assertHealthy();
+        return entry.client.query('SELECT 1 AS cutover_keepalive');
+      }).catch(entry.monitor.failed).finally(() => { entry.pending = false; pending.delete(request); });
+      pending.add(request);
+    }
+  };
+  const timer = timers.schedule(tick, 30_000);
+  timer?.unref?.();
+  return {
+    assertHealthy() { for (const entry of entries) entry.monitor.assertHealthy(); },
+    async stop() { stopped = true; timers.cancel(timer); await Promise.allSettled([...pending]); },
+  };
+}
 export function confirmExecution(bundle, confirmation) {
   guard(confirmation.planSha256 === bundle.installation.digest, 'EXACT_PLAN_SHA256_CONFIRMATION_REQUIRED');
   guard(confirmation.packageSha256 === bundle.packageSha256, 'EXACT_PACKAGE_SHA256_CONFIRMATION_REQUIRED');
@@ -21,6 +58,9 @@ async function begin(client, readOnly) {
   await client.query(readOnly ? 'BEGIN READ ONLY' : 'BEGIN');
   await client.query("SET LOCAL lock_timeout='5s'");
   await client.query("SET LOCAL idle_in_transaction_session_timeout='180s'");
+  // The keepalive prevents idle expiry while the other source is busy, while
+  // PostgreSQL still bounds the entire transaction even if the process stalls.
+  await client.query("SET LOCAL transaction_timeout='15min'");
 }
 export async function commitOnce(client) {
   try { await client.query('COMMIT'); }
@@ -35,11 +75,14 @@ export async function runCutover({ mode, bundle, black, white, configurations, c
   const { databaseIdentity, assertIdentity, assertNoOtherClients, assertExistingRoles, lockTables, verifySource, applyInstallation, verify } = steps;
   guard(mode === 'execute' || mode === 'check', 'UNKNOWN_CUTOVER_MODE');
   if (mode === 'execute') confirmExecution(bundle, confirmation);
+  monitorClient(black); monitorClient(white);
   let blackOpen = false, whiteOpen = false, commitAttempted = false;
+  let keepalive;
   const { installation, readiness } = bundle;
   try {
     await begin(black, mode !== 'execute'); blackOpen = true;
     await begin(white, true); whiteOpen = true;
+    keepalive = keepTransactionsAlive([black, white]);
     const acquired = (await black.query('SELECT pg_try_advisory_xact_lock(hashtextextended($1,0)) AS acquired', [migrationLock])).rows[0].acquired;
     guard(acquired, 'ANOTHER_CUTOVER_IS_ACTIVE');
     for (const [label, client] of [['negra', black], ['blanca', white]]) {
@@ -57,11 +100,13 @@ export async function runCutover({ mode, bundle, black, white, configurations, c
     await verifySource(black, configurations.negra, bundle, 'negra');
     await verifySource(white, configurations.blanca, bundle, 'blanca');
     await assertNoOtherClients(black); await assertNoOtherClients(white);
+    keepalive.assertHealthy();
     if (mode === 'check') return { ...resultSummary(bundle), mode, databaseWrites: false, preflightVerified: true,
       note: 'Point-in-time check only. Execute repeats every check under target write locks.' };
 
     // No DDL or business DML precedes both complete source verifications.
     await applyInstallation(black, installation);
+    keepalive.assertHealthy();
     await black.query("INSERT INTO shared_runtime.configuration(singleton,version,environment,instance_id) VALUES(true,1,'production',$1)", [readiness.productionInstanceId]);
     await black.query("SET LOCAL shared_cutover.approved_white_role='llantera_multi_stock'");
     await black.query("SET LOCAL shared_cutover.apps_stopped='true'");
@@ -73,17 +118,23 @@ export async function runCutover({ mode, bundle, black, white, configurations, c
     // writes, role changes, connection termination or deletions are performed.
     await verifySource(white, configurations.blanca, bundle, 'blanca');
     await assertNoOtherClients(black); await assertNoOtherClients(white);
+    // Drain heartbeats before COMMIT. No background query can execute after a
+    // commit attempt or obscure whether a transport failure happened at COMMIT.
+    await keepalive.stop();
+    keepalive.assertHealthy();
     commitAttempted = true;
     await commitOnce(black); blackOpen = false;
     return { ...resultSummary(bundle), mode, committed: true, commitOutcome: 'confirmed', sourceWhiteModified: false, ...proof };
   } finally {
     // An ambiguous COMMIT is never retried. Closing the connection resolves any
     // open transaction; durable status must be read before considering recovery.
+    await keepalive?.stop();
     if (blackOpen && !commitAttempted) await black.query('ROLLBACK').catch(() => {});
     if (whiteOpen) await white.query('ROLLBACK').catch(() => {});
   }
 }
 export async function status({ bundle, black, configuration }) {
+  monitorClient(black);
   await begin(black, true);
   try {
     assertIdentity(await databaseIdentity(black, configuration), bundle.readiness.identities.negra, 'negra');
@@ -123,12 +174,13 @@ export async function main(argv = process.argv.slice(2)) {
     const configurations = { negra: await readConnection(args['black-connection-file'], 'negra') };
     if (args.mode !== 'status') configurations.blanca = await readConnection(args['white-connection-file'], 'blanca');
     const black = new pg.Client(options(configurations.negra, args.mode !== 'execute'));
+    monitorClient(black);
     let white;
     try {
       await black.connect();
       if (args.mode === 'status') result = await status({ bundle, black, configuration: configurations.negra });
       else {
-        white = new pg.Client(options(configurations.blanca, true)); await white.connect();
+        white = new pg.Client(options(configurations.blanca, true)); monitorClient(white); await white.connect();
         result = await runCutover({ mode: args.mode, bundle, black, white, configurations,
           confirmation: { planSha256: args['confirm-plan-sha256'], packageSha256: args['confirm-package-sha256'] } });
       }
