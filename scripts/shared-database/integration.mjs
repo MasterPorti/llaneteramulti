@@ -380,7 +380,7 @@ try {
     const stored = await storedSale(sale.id);
     assert.equal(Number(stored.total), 214.6); assert.equal(Number(stored.subtotal), 185); assert.equal(Number(stored.iva), 29.6); assert.equal(stored.iva_politica, 'incluido_16');
     assert.equal(stored.items.length, 4); assert.equal(stored.items[0].costoUnitario, 50); assert.equal(stored.items[1].costoUnitario, null); assert.equal(stored.items[2].costoUnitario, null);
-    const read = expectOk(await run('blanca', 'get', { id: sale.id })); assert.equal(read.importeNewTires, 116); assert.equal(read.items.length, 4);
+    const read = expectOk(await run('blanca', 'get', { id: sale.id })); assert.equal(read.items[0].proveedorSnapshot, 'COMERCIALIZADORA DE NEW TIRES'); assert.equal(read.items.length, 4);
     const history = expectOk(await run('blanca', 'history', { ids: [sale.id] })); assert.equal(history.length, 1);
     // Both applications compete to cancel the same complete document.
     await Promise.all([run('blanca', 'cancel', { id: sale.id, reason: 'Integration cancellation' }), run('negra', 'cancel', { id: sale.id, reason: 'Integration cancellation' })]);
@@ -389,7 +389,7 @@ try {
   await check('black mixed-provider history remains whole in white and cancels all real stock once', async () => {
     const t = await tire(10, { domain: 'general' }), other = await tire(10, { domain: 'general', supplier: 'Integration Other Supplier', origin: 'blanca' }), s = await service();
     const sale = expectOk(await run('negra', 'mixed-sale', { input: { requestId: randomUUID(), clienteNombre: customer, metodoPago: 'efectivo', items: [tireItem(t), tireItem(other), { tipo: 'servicio', id: s, cantidad: 1 }] } }));
-    const detail = expectOk(await run('blanca', 'get', { id: sale.id })); assert.equal(detail.items.length, 3); assert.equal(detail.importeNewTires, 116); assert.equal(detail.total, 261); assert.equal(detail.iva, 0);
+    const detail = expectOk(await run('blanca', 'get', { id: sale.id })); assert.equal(detail.items.length, 3); assert.equal(Object.hasOwn(detail, 'importeNewTires'), false); assert.equal(detail.total, 261); assert.equal(detail.iva, 0);
     assert.equal((await client.query('SELECT count(*)::int AS n FROM shared_runtime.sale_item_scope WHERE sale_kind=\'ventas\' AND sale_id=$1 AND provider_key=\'COMERCIALIZADORA DE NEW TIRES\'', [sale.id])).rows[0].n, 1);
     expectOk(await run('blanca', 'cancel', { id: sale.id, reason: 'Integration mixed cancellation' }));
     assert.equal(await tireStock(t), 10); assert.equal(await tireStock(other), 10);
@@ -429,7 +429,7 @@ try {
     assert.deepEqual(history.map(sale => sale.id).sort(), ids.sort());
     for (const sale of sales) {
       const detail = expectOk(await run('blanca', 'get', { id: sale.id }));
-      assert.equal(detail.items.length, 1); assert.equal(detail.importeNewTires, 0);
+      assert.equal(detail.items.length, 1); assert.equal(Object.hasOwn(detail, 'importeNewTires'), false);
       for (const field of ['subtotal', 'iva', 'total']) assert.equal(detail[field], Number(sale[field]));
       assert.equal(detail.iva, 0, 'White must not recalculate the black application fiscal policy.');
     }

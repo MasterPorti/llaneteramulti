@@ -61,8 +61,6 @@ function searchFilter(busqueda?: string): string[] {
 
 /** Inputs are already selected by the caller; report builders never expand or refilter them. */
 export function buildSalesReport(ventas: readonly Venta[], range: { desde: string; hasta: string }): PdfReport {
-  const showSupplier = ventas.some(venta => venta.importeNewTires !== undefined);
-  let supplierTotal = zero;
   let subtotal = zero;
   let iva = zero;
   let total = zero;
@@ -77,7 +75,6 @@ export function buildSalesReport(ventas: readonly Venta[], range: { desde: strin
       iva += amounts.iva;
       total += amounts.total;
       quantity += saleQuantity;
-      if (showSupplier) supplierTotal += cents(venta.importeNewTires ?? 0);
     }
     const concepts = venta.items.map((item) => {
       const name = item.tipo === 'producto'
@@ -91,17 +88,15 @@ export function buildSalesReport(ventas: readonly Venta[], range: { desde: strin
       integer.format(saleQuantity), money(amounts.subtotal), money(amounts.iva), money(amounts.total),
       paymentNames[venta.metodoPago] ?? text(venta.metodoPago), venta.cancelada ? 'Cancelada' : 'Vigente',
     ];
-    if (showSupplier) cells.splice(8, 0, money(cents(venta.importeNewTires ?? 0)));
     return cells;
   });
   const filters = [
     ...(range.desde ? [`Desde: ${formatDateShort(range.desde)}`] : []),
     ...(range.hasta ? [`Hasta: ${formatDateShort(range.hasta)}`] : []),
   ];
-  const widths = showSupplier ? [27, 19, 28, 49, 11, 22, 21, 22, 25, 23, 19] : [29, 19, 34, 60, 12, 24, 22, 24, 24, 21];
+  const widths = [29, 19, 34, 60, 12, 24, 22, 24, 24, 21];
   const headers = ['Fecha (CDMX)', 'Folio', 'Cliente', 'Conceptos', 'Cant.', 'Subtotal', 'IVA', 'Total', 'Pago', 'Estado'];
   const totals = ['', '', '', 'TOTALES VIGENTES', integer.format(quantity), money(subtotal), money(iva), money(total), '', ''];
-  if (showSupplier) { headers.splice(8, 0, 'Importe New Tires'); totals.splice(8, 0, money(supplierTotal)); }
   return {
     kind: 'ventas', title: 'Reporte de ventas', description: 'Detalle de las ventas seleccionadas e importes registrados en pesos mexicanos.',
     filename: range.desde || range.hasta ? `ventas_${range.desde || 'inicio'}_${range.hasta || 'fin'}.pdf` : 'ventas_todas.pdf',
@@ -113,13 +108,11 @@ export function buildSalesReport(ventas: readonly Venta[], range: { desde: strin
       { label: 'Subtotal vigente', value: money(subtotal) },
       { label: 'IVA registrado vigente', value: money(iva) },
       { label: 'Total vigente', value: money(total) },
-      ...(showSupplier ? [{ label: 'Importe New Tires vigente', value: money(supplierTotal) }] : []),
     ],
-    columns: headers.map((header, index) => ({ header, width: widths[index], align: index >= 4 && index <= (showSupplier ? 8 : 7) ? 'right' as const : 'left' as const })),
+    columns: headers.map((header, index) => ({ header, width: widths[index], align: index >= 4 && index <= 7 ? 'right' as const : 'left' as const })),
     rows, totalRow: totals,
     rowStatuses: ventas.map((venta) => venta.cancelada ? 'cancelada' : undefined),
-    note: 'Las ventas canceladas se muestran para consulta y se excluyen de la cantidad y los totales vigentes. Subtotal, IVA y total son los importes almacenados: este reporte no recalcula el IVA ni aplica una tasa. Los IVA registrados en cero se conservan. Fechas en horario de Ciudad de México.'
-      + (showSupplier ? ' Importe New Tires suma las partidas identificadas de ese proveedor; se conserva el documento completo y no se reparte su IVA entre proveedores.' : ''),
+    note: 'Las ventas canceladas se muestran para consulta y se excluyen de la cantidad y los totales vigentes. Subtotal, IVA y total son los importes almacenados: este reporte no recalcula el IVA ni aplica una tasa. Los IVA registrados en cero se conservan. Fechas en horario de Ciudad de México.',
   };
 }
 

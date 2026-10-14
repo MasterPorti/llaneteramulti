@@ -84,8 +84,7 @@ export function adaptSharedSale(row: SharedSaleRow, kind: SaleKind): Venta {
     ...(row.factura ? { factura: row.factura } : {}), garantia: row.garantia ?? { activa: false, fechaInicio: '', fechaFin: '', diasGarantia: 0, condiciones: '' },
     cancelada: row.cancelada === true, motivoCancelacion: row.motivoCancelacion ?? undefined, createdAt: row.createdAt ?? date, updatedAt: row.updatedAt ?? date,
     soloLecturaMigrada: row.imported_read_only === true || (kind === 'ventas_productos' && typeof row.cancelada !== 'boolean'),
-    datosOriginalesJson: row.raw_document, datosOriginales: JSON.parse(row.raw_document), storageKind: kind,
-    importeNewTires: items.reduce((sum, item, index) => sum + (classified.has(index) ? Math.round(item.subtotal * 100) : 0), 0) / 100 };
+    datosOriginalesJson: row.raw_document, datosOriginales: JSON.parse(row.raw_document), storageKind: kind };
 }
 function selectSql(kind: SaleKind): string {
   return `SELECT v.*,row_to_json(v)::text AS raw_document,

@@ -97,6 +97,16 @@ test('financial aggregation is exact in cents and never rebuilds stored totals f
   assert.equal(stat(many, 'Total vigente'), '$10.01');
 });
 
+test('reports have one stored financial total even when a legacy caller still supplies a supplier amount', () => {
+  const source = freeze([sale({ subtotal: 1300, iva: 50, total: 1350, importeNewTires: 640 })]);
+  const report = buildSalesReport(source, allDates);
+  assert.deepEqual(report.rows[0].slice(5, 8), ['$1,300.00', '$50.00', '$1,350.00']);
+  assert.equal(report.columns.length, 10);
+  assert.equal(report.stats.length, 6);
+  assert.ok(!JSON.stringify(report).includes('Importe New Tires'));
+  assert.ok(!JSON.stringify(report).includes('$640.00'));
+});
+
 test('only-cancelled selection remains visible with zero current totals and missing optional customer data is not invented', () => {
   const report = buildSalesReport([sale({ cancelada: true, cliente: { nombre: '', telefono: null }, factura: null })], allDates);
   assert.equal(report.rows.length, 1);

@@ -62,8 +62,6 @@ export interface FacturaInfo {
 
 export interface Venta {
   storageKind?: 'ventas' | 'ventas_productos';
-  /** Recorded gross amount of classified New Tires lines, never allocated tax. */
-  importeNewTires?: number;
   ivaPolitica?: 'incluido_16' | null;
   soloLecturaMigrada?: boolean;
   datosOriginales?: Record<string, unknown>;

@@ -55,9 +55,6 @@ export function VentasTable({ ventas }: VentasTableProps) {
   const totalFiltrado = ventasFiltradas
     .filter((v) => !v.cancelada)
     .reduce((acc, v) => acc + Math.round(v.total * 100), 0) / 100;
-  const mostrarNewTires = ventas.some(v => v.importeNewTires !== undefined);
-  const totalNewTires = ventasFiltradas.filter(v => !v.cancelada)
-    .reduce((sum, v) => sum + Math.round((v.importeNewTires ?? 0) * 100), 0) / 100;
 
   const columns = [
     {
@@ -116,14 +113,12 @@ export function VentasTable({ ventas }: VentasTableProps) {
       render: (item: Venta) => formatDateTime(item.fechaVenta),
     },
   ];
-  if (mostrarNewTires) columns.splice(6, 0, { key: 'importeNewTires', header: 'Importe New Tires',
-    render: (item: Venta) => <span>{formatCurrency(item.importeNewTires ?? 0)}</span> });
 
   return (
     <div>
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3 p-4 border-b border-gray-100">
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {(['hoy', 'semana', 'mes', 'todos'] as const).map((p) => (
             <button
               key={p}
@@ -171,7 +166,6 @@ export function VentasTable({ ventas }: VentasTableProps) {
           <span className="text-sm text-gray-500">
             <span className="font-medium text-gray-800">{ventasFiltradas.length}</span> ventas ·{' '}
             <span className="font-medium text-gray-800">{formatCurrency(totalFiltrado)}</span>
-            {mostrarNewTires && <span className="block text-xs">New Tires: {formatCurrency(totalNewTires)} · importe de partidas; sin repartir IVA</span>}
           </span>
           <DownloadPdfButton
             getReport={() => buildSalesReport(ventasFiltradas, { desde, hasta })}

@@ -112,11 +112,11 @@ function fakeDatabase() {
 const input = (overrides = {}) => ({ operacionId: 'test-operation-0001', clienteNombre: 'Cliente de prueba',
   items: [{ tipo: 'producto', id: 'tire', bodega: 'bodega-1', cantidad: 2 }], metodoPago: 'efectivo', generarFactura: false, sinGarantia: true, ...overrides });
 
-test('mixed historical ticket preserves all lines, stored IVA and original, with separate supplier amount', () => {
+test('mixed historical ticket preserves all lines, stored IVA and original without a supplier financial split', () => {
   const { adaptSharedSale } = loadModule('lib/data/shared-database-ventas.ts', {});
   const sale = adaptSharedSale(sampleRow(), 'ventas');
   assert.equal(sale.items.length, 2); assert.equal(sale.total, 1350); assert.equal(sale.iva, 186.21);
-  assert.equal(sale.importeNewTires, 640); assert.equal(sale.items[1].esNewTires, false);
+  assert.equal(Object.hasOwn(sale, 'importeNewTires'), false); assert.equal(sale.items[1].esNewTires, false);
   assert.equal(sale.fechaVenta, '2026-10-13T12:00:00.123456Z'); assert.equal(sale.soloLecturaMigrada, true);
   assert.equal(sale.items[0].costoUnitario, undefined); assert.equal(sale.datosOriginalesJson, '{"id":"sale","original":true}');
 });
@@ -125,6 +125,7 @@ function archivedFiscal(sale = {}) {
   const document = JSON.stringify({ sale: { id: 'sale', folio: 'SI-0001', subtotal: 1163.79, iva: 186.21, total: 1350, iva_politica: 'incluido_16', ...sale }, items: [] });
   return { white_original_document: document, white_original_sha256: createHash('sha256').update(document).digest('hex') };
 }
+
 test('same historical sale keeps black money unchanged and white recorded fiscal amounts in app and PDF', () => {
   const { adaptSharedSale } = loadModule('lib/data/shared-database-ventas.ts', {});
   const { buildSalesReport } = loadModule('lib/reports/data.ts', {});
@@ -182,7 +183,7 @@ test('sale atomically saves stock, receipt, scope and included IVA; exact retry 
   const fake = fakeDatabase(); const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
   const sale = await api.sharedCreateSale(input());
   assert.equal(sale.total, 2380); assert.equal(sale.subtotal, 2051.72); assert.equal(sale.iva, 328.28);
-  assert.equal(sale.importeNewTires, 2380); assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 0);
+  assert.equal(sale.items[0].proveedorSnapshot, 'COMERCIALIZADORA DE NEW TIRES'); assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 0);
   assert.equal(fake.state.movements.length, 1); assert.equal(fake.state.sales[sale.id].items[0].costoEstado, 'desconocido');
   assert.equal(fake.state.sales[sale.id].items[0].costoUnitario, null);
   const replay = await api.sharedCreateSale(input()); assert.equal(replay.id, sale.id);
@@ -250,12 +251,13 @@ test('shared mode dispatch never queries the legacy outbox while reading history
     assert.equal(fake.events.some(sql => /shared_stock_operations|multi_inventory/.test(sql)), false);
   } finally { if (saved === undefined) delete process.env.SHARED_DATABASE_MODE; else process.env.SHARED_DATABASE_MODE = saved; }
 });
-test('supplier report retains mixed document totals and excludes cancelled supplier amounts', () => {
+test('sales report retains mixed document totals and excludes cancelled documents from totals without supplier split', () => {
   const api = loadModule('lib/data/shared-database-ventas.ts', {});
   const { buildSalesReport } = loadModule('lib/reports/data.ts', {});
   const active = api.adaptSharedSale(sampleRow(), 'ventas'); const cancelled = { ...active, id: 'cancelled', cancelada: true };
   const report = buildSalesReport([active, cancelled], { desde: '', hasta: '' });
-  assert.equal(report.rows.length, 2); assert.equal(report.rows[0][8], '$640.00');
-  assert.equal(report.totalRow[7], '$1,350.00'); assert.equal(report.totalRow[8], '$640.00');
+  assert.equal(report.rows.length, 2); assert.equal(report.rows[0][8], 'Transferencia');
+  assert.equal(report.totalRow[7], '$1,350.00'); assert.equal(report.columns.length, 10);
+  assert.ok(report.columns.every(column => column.header !== 'Importe New Tires'));
   assert.match(report.rows[0][3], /A B/); assert.match(report.rows[0][3], /C D/);
 });
