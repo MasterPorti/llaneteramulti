@@ -39,6 +39,8 @@ export interface SistemaCliente {
 
 // Venta del Sistema Inventario
 export interface SistemaVenta {
+  /** Confirmation of a retry from before the white history reset. Never persisted. */
+  fueraDelHistorialActual?: true;
   ivaPolitica?: 'incluido_16' | null;
   soloLecturaMigrada?: boolean;
   datosOriginales?: Record<string, unknown>;

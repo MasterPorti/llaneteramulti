@@ -10,6 +10,7 @@ import { obtenerInventario } from "./actions";
 import { formatCurrency } from "@/lib/utils/formatters";
 import { getTotalStock, type Llanta, type BodegaId } from "@/types";
 import { BODEGAS } from "@/lib/config";
+import { tireHasInventoryStock } from "@/lib/tire-inventory-availability";
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
@@ -22,12 +23,9 @@ export default function InventarioPage() {
     setInventario,
   );
   const inventarioFiltrado = inventario.filter((l) => {
+    if (!tireHasInventoryStock(l, bodegaFiltro)) return false;
     if (estadoFiltro === "activos" && !l.activo) return false;
     if (estadoFiltro === "inactivos" && l.activo) return false;
-    // Filtrar por bodega
-    if (bodegaFiltro && (l.stockPorBodega[bodegaFiltro] || 0) === 0) {
-      return false;
-    }
     // Filtrar por búsqueda
     if (busqueda.trim()) {
       const term = busqueda.toLowerCase();
@@ -61,7 +59,7 @@ export default function InventarioPage() {
     <div>
       <PageHeader
         title="Inventario"
-        subtitle={`${inventario.length} llantas NEW TIRES · Existencias compartidas`}
+        subtitle={`${inventarioFiltrado.length} llantas NEW TIRES con stock · Inventario compartido`}
       />
 
       {/* Buscador y Filtros */}
@@ -125,7 +123,7 @@ export default function InventarioPage() {
               <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
               {busqueda || bodegaFiltro ? (
                 <p>
-                  No se encontraron productos
+                  No se encontraron llantas con existencias
                   {busqueda && <> para &quot;{busqueda}&quot;</>}
                   {bodegaFiltro && (
                     <>
@@ -135,7 +133,7 @@ export default function InventarioPage() {
                   )}
                 </p>
               ) : (
-                <p>No hay llantas NEW TIRES para mostrar.</p>
+                <p>No hay llantas NEW TIRES con existencias para mostrar.</p>
               )}
             </div>
           </CardBody>

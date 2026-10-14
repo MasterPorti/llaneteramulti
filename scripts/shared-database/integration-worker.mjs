@@ -43,7 +43,7 @@ function load(filename) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
     jsx: ts.JsxEmit.ReactJSX,
   } }).outputText;
-  const localRequire = name => name.startsWith('@/') ? load(path.join(root, name.slice(2)))
+  const localRequire = name => name === 'server-only' ? {} : name.startsWith('@/') ? load(path.join(root, name.slice(2)))
     : name.startsWith('.') ? load(path.resolve(path.dirname(full), name))
       : name === 'pg' && process.env.SHARED_TEST_COMMIT_ACK_LOSS === 'true' ? { ...pg, Pool: FaultInjectionPool } : requirePackage(name);
   new Function('require', 'module', 'exports', '__filename', '__dirname', code)(localRequire, compiledModule, compiledModule.exports, full, path.dirname(full));

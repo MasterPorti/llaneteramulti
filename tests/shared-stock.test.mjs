@@ -128,6 +128,7 @@ const central = {
   },
 };
 Module._load = function(request, parent, isMain) {
+  if (request === 'server-only') return {};
   if (request === '@/lib/db') return { db: localDb };
   if (request === '@/lib/central-inventory') return central;
   return oldLoad.call(this, request, parent, isMain);

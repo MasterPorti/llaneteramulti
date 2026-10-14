@@ -5,6 +5,7 @@ import { centralInventory, CENTRAL_SUPPLIER, assertCentralSupplier } from '@/lib
 import { reconcileSharedStock } from '@/lib/shared-stock';
 import type { Llanta, LlantaInput, LlantaSuggestion, BodegaId, MovimientoBodega } from '@/types';
 import { getTotalStock } from '@/types';
+import { tireHasInventoryStock } from '@/lib/tire-inventory-availability';
 import { generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { validarBodega, validarCantidad, validarProveedor } from './validation';
 import { adaptarLlanta, type LlantaRow } from './normalizado';
@@ -33,7 +34,7 @@ export async function obtenerLlantaSistema(id: string, incluirInactivos = false)
 }
 export async function buscarLlantasSistema(termino: string): Promise<LlantaSuggestion[]> {
   const term = termino.trim().toLocaleLowerCase('es-MX');
-  return (await obtenerInventarioSistema()).filter((llanta) => [llanta.marca, llanta.modelo, llanta.medida, llanta.proveedor,
+  return (await obtenerInventarioSistema()).filter((llanta) => tireHasInventoryStock(llanta)).filter((llanta) => [llanta.marca, llanta.modelo, llanta.medida, llanta.proveedor,
     `${llanta.marca} ${llanta.modelo}`, generarCodigoAuxiliar(llanta.medida)]
     .some((value) => (value || '').toLocaleLowerCase('es-MX').includes(term))).slice(0, 10).map((llanta) => ({
       id: llanta.id, marca: llanta.marca, modelo: llanta.modelo, medida: llanta.medida, stockTotal: getTotalStock(llanta),

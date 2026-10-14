@@ -1,5 +1,5 @@
 // Real two-process application integration tests against a disposable local clone.
-// Usage: node scripts/shared-database/integration.mjs --connection PRIVATE_JSON --black BLACK_WORKTREE [--white-connection PRIVATE_JSON]
+// Usage: node scripts/shared-database/integration.mjs --connection PRIVATE_JSON --black BLACK_WORKTREE [--white-connection PRIVATE_JSON] [--instance EXPECTED_UUID]
 // The clone must already exist. This program never creates, drops or connects to a source database.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,6 +24,16 @@ for (const config of [connection, whiteConnection]) {
 }
 const require = createRequire(path.join(white, 'package.json'));
 const { Client } = require('pg');
+const ts = require('typescript');
+function historyResetPolicy() {
+  const compiledModule = { exports: {} };
+  const filename = path.join(white, 'lib/data/white-sales-history.ts');
+  const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: {
+    module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
+  } }).outputText;
+  new Function('require', 'module', 'exports', code)(name => name === 'server-only' ? {} : require(name), compiledModule, compiledModule.exports);
+  return compiledModule.exports;
+}
 const database = 'llantas_shared_tests';
 const client = new Client({ ...connection, database, application_name: 'shared_database_integration_tests' });
 const prefix = 'it-' + randomUUID().slice(0, 8), customer = 'CODEX INTEGRATION ' + prefix;
@@ -108,6 +118,36 @@ async function fingerprints() {
   }
   return all;
 }
+async function captureWhiteHistoryReset() {
+  // The same read-only MVCC boundary used for the real reset. Business dates and
+  // the start time of an in-flight sale never decide whether it is historical.
+  const policy = historyResetPolicy();
+  await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  try {
+    const identity = (await client.query(`SELECT current_database() AS database,version,environment,instance_id::text AS instance,
+      txid_current_snapshot()::text AS snapshot,clock_timestamp() AS captured_at
+      FROM shared_runtime.configuration WHERE singleton IS TRUE`)).rows;
+    assert.equal(identity.length, 1); assert.equal(identity[0].database, database);
+    assert.equal(identity[0].environment, 'development'); assert.equal(identity[0].version, 1);
+    assert.equal(identity[0].instance, instance);
+    const excludedIds = {};
+    for (const kind of ['ventas', 'ventas_productos']) {
+      excludedIds[kind] = (await client.query(`SELECT id FROM public.${kind} ORDER BY id`)).rows.map(row => row.id);
+    }
+    const manifest = policy.buildWhiteSalesHistoryReset({ databaseInstanceId: instance, environment: 'development',
+      resetId: randomUUID(), resetAtUtc: identity[0].captured_at.toISOString(), snapshotId: identity[0].snapshot, excludedIds });
+    const encoded = policy.serializeWhiteSalesHistoryReset(manifest);
+    assert.deepEqual(policy.parseWhiteSalesHistoryReset(encoded, instance, 'development'), manifest);
+    return { manifest, overrides: { WHITE_SALES_HISTORY_RESET: encoded } };
+  } finally { await client.query('ROLLBACK'); }
+}
+async function durableOutcome(operationId, saleId) {
+  return {
+    journal: (await client.query('SELECT * FROM shared_runtime.operations WHERE id=$1', [operationId])).rows,
+    sales: (await client.query('SELECT * FROM ventas WHERE request_id=$1', [operationId])).rows,
+    movements: (await client.query('SELECT * FROM movimientos_bodega WHERE venta_id=$1 ORDER BY id', [saleId])).rows,
+  };
+}
 
 try {
   await client.connect();
@@ -115,6 +155,8 @@ try {
     FROM shared_runtime.configuration WHERE singleton IS TRUE`)).rows;
   assert.equal(identity.length, 1); assert.equal(identity[0].database, database); assert.equal(identity[0].version, 1);
   assert.equal(identity[0].environment, 'development'); instance = identity[0].instance;
+  assert.match(instance, /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/);
+  if (argument('--instance')) assert.equal(instance, argument('--instance'), 'Refuse fixtures in an unexpected local clone.');
   const original = await fingerprints();
 
   await check('authentic shared history preserves each application fiscal record under one sale identity', async () => {
@@ -454,6 +496,129 @@ try {
     for (const field of ['subtotal', 'iva', 'total']) assert.equal(Number(stored[field]), sale[field]);
     assert.equal(await tireStock(t), 9);
     assert.equal((await run('blanca', 'invoice', { id: sale.id, input })).ok, false);
+  });
+  await check('white history reset hides its entire baseline while black keeps authentic previous records', async () => {
+    const t = await tire(10), p = await product();
+    const oldWhite = expectOk(await run('blanca', 'sale', { input: { ...whiteInput([tireItem(t)]), sinGarantia: false, diasGarantia: 3 } }));
+    const oldBlack = expectOk(await run('negra', 'sale', { input: blackInput(t) }));
+    const legacyProduct = expectOk(await run('negra', 'product-sale', { input: blackProductInput(p) }));
+    // Only synthetic rows are changed to exercise misleading business dates and
+    // the legacy white product-sales module captured by the two-table baseline.
+    await client.query('UPDATE ventas SET "fechaVenta"=$2 WHERE id=$1', [oldWhite.id, '2099-01-01T00:00:00.000Z']);
+    await client.query("UPDATE ventas_productos SET origen_app='blanca' WHERE id=$1", [legacyProduct.id]);
+    const before = await fingerprints();
+    const { manifest, overrides } = await captureWhiteHistoryReset();
+    const baselineIds = [...manifest.excludedIds.ventas, ...manifest.excludedIds.ventas_productos];
+    assert.deepEqual(expectOk(await run('blanca', 'history', { ids: baselineIds }, overrides)), []);
+    for (const [value, by] of [[oldWhite.id, 'id'], [oldWhite.folio, 'folio'], [oldWhite.garantia.id, 'garantia'], [legacyProduct.id, 'id']]) {
+      assert.equal(expectOk(await run('blanca', 'get', { id: value, by }, overrides)), null);
+    }
+    assert.equal(expectOk(await run('blanca', 'cancel', { id: oldWhite.id, reason: 'Must preserve hidden original' }, overrides)), null);
+    assert.equal(expectOk(await run('blanca', 'invoice', { id: oldWhite.id, input: {} }, overrides)), null);
+    const blackHistory = expectOk(await run('negra', 'history', { ids: [oldWhite.id, oldBlack.id] }));
+    assert.deepEqual(blackHistory.map(sale => sale.id).sort(), [oldWhite.id, oldBlack.id].sort());
+    assert.equal(expectOk(await run('negra', 'get', { id: oldWhite.id })).id, oldWhite.id);
+    assert.equal(expectOk(await run('negra', 'get', { id: oldBlack.id })).id, oldBlack.id);
+    assert.deepEqual(await fingerprints(), before, 'Capturing and applying the reset must not modify any historical sale, catalog row, movement or stock.');
+    assert.equal(expectOk(await run('blanca', 'get', { id: oldWhite.id })).id, oldWhite.id,
+      'Removing only the runtime policy must restore the old view without a database restore.');
+  });
+  await check('white history reset excludes all later black modules and keeps a new backdated white mixed sale with authentic IVA', async () => {
+    const t = await tire(10), p = await product(), s = await service();
+    const { overrides } = await captureWhiteHistoryReset();
+    const blackTire = expectOk(await run('negra', 'sale', { input: blackInput(t) }));
+    const blackService = expectOk(await run('negra', 'mixed-sale', {
+      input: { requestId: randomUUID(), clienteNombre: customer, metodoPago: 'efectivo', items: [{ tipo: 'servicio', id: s, cantidad: 1 }] },
+    }));
+    const blackProduct = expectOk(await run('negra', 'product-sale', { input: blackProductInput(p) }));
+    const sale = expectOk(await run('blanca', 'sale', { input: whiteInput([
+      tireItem(t), { tipo: 'catalogo', id: p, cantidad: 1 }, { tipo: 'servicio', id: s, cantidad: 1 },
+    ]) }, overrides));
+    assert.equal(sale.fueraDelHistorialActual, undefined); assert.equal(sale.total, 203);
+    assert.equal(sale.subtotal, 175); assert.equal(sale.iva, 28);
+    await client.query('UPDATE ventas SET "fechaVenta"=$2 WHERE id=$1', [sale.id, '2000-01-01T00:00:00.000Z']);
+    const before = await fingerprints();
+    const ids = [blackTire.id, blackService.id, blackProduct.id, sale.id];
+    assert.deepEqual(expectOk(await run('blanca', 'history', { ids }, overrides)).map(row => row.id), [sale.id]);
+    for (const id of [blackTire.id, blackService.id, blackProduct.id]) {
+      assert.equal(expectOk(await run('blanca', 'get', { id }, overrides)), null);
+    }
+    assert.equal(expectOk(await run('negra', 'get', { id: blackTire.id })).id, blackTire.id);
+    assert.equal(expectOk(await run('negra', 'get', { id: blackService.id })).id, blackService.id);
+    const detail = expectOk(await run('blanca', 'get', { id: sale.id }, overrides));
+    assert.equal(detail.items.length, 3); assert.equal(detail.total, 203); assert.equal(detail.iva, 28);
+    assert.equal(new Date(detail.fechaVenta).toISOString(), '2000-01-01T00:00:00.000Z');
+    assert.deepEqual(await fingerprints(), before);
+    assert.equal(await tireStock(t), 8); assert.equal(await productStock(p), 8);
+  });
+  await check('white history reset acknowledges a hidden old retry with one stock deduction and one durable outcome', async () => {
+    const t = await tire(10), input = whiteInput([tireItem(t)]);
+    const sale = expectOk(await run('blanca', 'sale', { input }));
+    const { overrides } = await captureWhiteHistoryReset();
+    const beforeRows = await fingerprints(), beforeOutcome = await durableOutcome(input.operacionId, sale.id);
+    assert.equal(beforeOutcome.sales.length, 1); assert.equal(beforeOutcome.movements.length, 1);
+    assert.equal(beforeOutcome.journal[0].status, 'committed');
+    const responses = await Promise.all([run('blanca', 'sale', { input }, overrides), run('blanca', 'sale', { input }, overrides)]);
+    for (const response of responses) {
+      const recovered = expectOk(response);
+      assert.equal(recovered.id, sale.id); assert.equal(recovered.folio, sale.folio);
+      assert.equal(recovered.storageKind, 'ventas'); assert.equal(recovered.fueraDelHistorialActual, true);
+    }
+    const changed = structuredClone(input); changed.items[0].cantidad = 2;
+    assert.equal((await run('blanca', 'sale', { input: changed }, overrides)).ok, false);
+    assert.equal(expectOk(await run('blanca', 'get', { id: sale.id }, overrides)), null);
+    assert.equal(await tireStock(t), 9);
+    assert.deepEqual(await durableOutcome(input.operacionId, sale.id), beforeOutcome);
+    assert.deepEqual(await fingerprints(), beforeRows);
+    assert.equal(Object.hasOwn((await storedSale(sale.id)), 'fueraDelHistorialActual'), false);
+  });
+  await check('white history reset recovers an old request without a journal and a new lost COMMIT acknowledgement', async () => {
+    const t = await tire(10), oldInput = whiteInput([tireItem(t)]);
+    const old = expectOk(await run('blanca', 'sale', { input: oldInput }));
+    const { overrides } = await captureWhiteHistoryReset();
+    // Remove only this synthetic QA request's journal to exercise reconciliation
+    // of a durable sale from before the current journal implementation.
+    await client.query('DELETE FROM shared_runtime.operations WHERE id=$1 AND sale_id=$2', [oldInput.operacionId, old.id]);
+    const replay = expectOk(await run('blanca', 'sale', { input: oldInput }, overrides));
+    assert.equal(replay.id, old.id); assert.equal(replay.fueraDelHistorialActual, true);
+    const oldOutcome = await durableOutcome(oldInput.operacionId, old.id);
+    assert.equal(oldOutcome.sales.length, 1); assert.equal(oldOutcome.movements.length, 1);
+    assert.equal(oldOutcome.journal.length, 1); assert.equal(oldOutcome.journal[0].status, 'committed');
+    const input = whiteInput([tireItem(t)]);
+    const resolved = expectOk(await run('blanca', 'sale', { input }, { ...overrides, SHARED_TEST_COMMIT_ACK_LOSS: 'true' }));
+    const recovered = expectOk(await run('blanca', 'sale', { input }, overrides));
+    assert.equal(recovered.id, resolved.id); assert.equal(recovered.fueraDelHistorialActual, undefined);
+    assert.equal(expectOk(await run('blanca', 'get', { id: recovered.id }, overrides)).id, recovered.id);
+    const outcome = await durableOutcome(input.operacionId, recovered.id);
+    assert.equal(outcome.sales.length, 1); assert.equal(outcome.movements.length, 1);
+    assert.equal(outcome.journal.length, 1); assert.equal(outcome.journal[0].status, 'committed');
+    assert.equal(await tireStock(t), 8);
+  });
+  await check('white history reset retains an in-flight sale committed after its MVCC snapshot despite an earlier transaction date', async () => {
+    const t = await tire(10), input = whiteInput([tireItem(t)]);
+    const blocker = new Client({ ...connection, database, application_name: 'integration_history_reset_barrier' });
+    await blocker.connect();
+    let pending, captured;
+    try {
+      await blocker.query('BEGIN'); await blocker.query('LOCK TABLE ventas IN SHARE MODE');
+      pending = run('blanca', 'sale', { input });
+      const deadline = Date.now() + 15000;
+      let waiting = 0;
+      while (Date.now() < deadline) {
+        waiting = (await client.query(`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE datname=$1 AND application_name='shared_canonical_application' AND wait_event_type='Lock'`, [database])).rows[0].n;
+        if (waiting >= 1) break;
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      assert.equal(waiting, 1, 'The real white writer must reach the controlled pre-COMMIT barrier.');
+      captured = await captureWhiteHistoryReset();
+    } finally { await blocker.query('COMMIT'); await blocker.end(); }
+    const sale = expectOk(await pending);
+    assert.equal(captured.manifest.excludedIds.ventas.includes(sale.id), false);
+    assert.ok(Date.parse(sale.fechaVenta) <= Date.parse(captured.manifest.resetAtUtc), 'The sale transaction must have begun before the snapshot.');
+    assert.equal(expectOk(await run('blanca', 'get', { id: sale.id }, captured.overrides)).id, sale.id);
+    assert.deepEqual(expectOk(await run('blanca', 'history', { ids: [sale.id] }, captured.overrides)).map(row => row.id), [sale.id]);
+    assert.equal(await tireStock(t), 9);
   });
   await check('all pre-existing catalog, sales and stock-movement rows remain byte-equivalent', async () => {
     const after = await fingerprints();

@@ -7,9 +7,32 @@ import { VentasTable } from "./VentasTable";
 
 export const dynamic = 'force-dynamic';
 
-export default async function VentasPage() {
+export default async function VentasPage({ searchParams }: {
+  searchParams: Promise<{ operacion?: string | string[] }>;
+}) {
+  const operation = (await searchParams).operacion;
+  const confirmationNotice = operation === 'anterior' ? (
+    <p role="status" className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+      Se recuperó la confirmación de una venta anterior al reinicio. Su registro original se conserva.
+    </p>
+  ) : null;
   const result = await obtenerVentas({ incluirCanceladas: true });
-  const ventas = result.data || [];
+  if (!result.success || !result.data) {
+    return (
+      <div>
+        <PageHeader title="Ventas" subtitle="Historial de ventas realizadas" />
+        {confirmationNotice}
+        <Card>
+          <CardBody>
+            <p role="alert" className="text-red-700">
+              {result.error || 'No se pudo cargar el historial de ventas. Intenta de nuevo.'}
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+  const ventas = result.data;
 
   const hoy = getMexicoDateString();
   const vigentes = ventas.filter((venta) => !venta.cancelada);
@@ -40,6 +63,8 @@ export default async function VentasPage() {
           </div>
         }
       />
+
+      {confirmationNotice}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>

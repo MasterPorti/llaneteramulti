@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/utils/formatters";
 import { getTotalStock, type Llanta, type BodegaId } from "@/types";
 import { BODEGAS } from "@/lib/config";
 import { buildTiresReport } from "@/lib/reports/data";
+import { tireHasInventoryStock } from "@/lib/tire-inventory-availability";
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
@@ -24,7 +25,7 @@ export default function InventarioPage() {
     setInventario,
   );
   const inventarioFiltrado = inventario.filter((l) => {
-    if (bodegaFiltro && !(l.stockPorBodega[bodegaFiltro] > 0)) return false;
+    if (!tireHasInventoryStock(l, bodegaFiltro)) return false;
     if (estadoFiltro === "activos" && !l.activo) return false;
     if (estadoFiltro === "inactivos" && l.activo) return false;
     if (busqueda.trim()) {
@@ -59,7 +60,7 @@ export default function InventarioPage() {
     <div>
       <PageHeader
         title="Inventario"
-        subtitle={`${inventario.length} llantas NEW TIRES · Existencias compartidas`}
+        subtitle={`${inventarioFiltrado.length} llantas NEW TIRES con stock · Inventario compartido`}
         actions={
           <div className="flex flex-wrap gap-2">
             <DownloadPdfButton
@@ -106,10 +107,14 @@ export default function InventarioPage() {
           <CardBody>
             <div className="text-center py-12 text-gray-400">
               <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              {busqueda ? (
-                <p>No se encontraron productos para &quot;{busqueda}&quot;</p>
+              {busqueda || bodegaFiltro ? (
+                <p>
+                  No se encontraron llantas con existencias
+                  {busqueda && <> para &quot;{busqueda}&quot;</>}
+                  {bodegaFiltro && <> en {BODEGAS.find((bodega) => bodega.id === bodegaFiltro)?.nombre}</>}.
+                </p>
               ) : (
-                <p>No hay llantas NEW TIRES para mostrar.</p>
+                <p>No hay llantas NEW TIRES con existencias para mostrar.</p>
               )}
             </div>
           </CardBody>

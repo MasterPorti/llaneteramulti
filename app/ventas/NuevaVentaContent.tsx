@@ -24,6 +24,7 @@ import { obtenerInventario } from '@/app/llantas/actions';
 import { obtenerServicios } from '@/app/servicios/actions';
 import { obtenerProductos } from '@/app/productos/actions';
 import { filtrarProductos } from '@/app/productos/producto-search';
+import { tireHasInventoryStock } from '@/lib/tire-inventory-availability';
 import { crearVenta } from './actions';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { calcularImportesVenta, calcularImportePartida } from '@/lib/utils/iva';
@@ -249,7 +250,8 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
 
   // Filtered llantas for search
   const filteredProducts = inventario.filter((l) => {
-    if (!searchTerm.trim()) return getTotalStock(l) > 0;
+    if (!tireHasInventoryStock(l)) return false;
+    if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const termNorm = term.replace(/[/rR\s-]/g, '');
     const medidaNorm = l.medida.toLowerCase().replace(/[/rR\s-]/g, '');
@@ -454,7 +456,7 @@ export default function NuevaVentaContent({ defaultTab = 'servicios' }: NuevaVen
       const result = await crearVenta(saved.payload);
       if (result.success && result.data) {
         pendingSale.clear(saved.id);
-        router.push(`/ventas/${result.data.id}`);
+        router.push(result.data.fueraDelHistorialActual ? '/ventas?operacion=anterior' : `/ventas/${result.data.id}`);
         return;
       }
       if (result.operationStatus === 'released') pendingSale.clear(saved.id);

@@ -9,10 +9,13 @@ VISIBILIDAD Y DOCUMENTOS
 - Llantas en la blanca: exclusivamente COMERCIALIZADORA DE NEW TIRES, sin
   excepciones por aplicacion de origen. SistemaBodega conserva todo el catalogo.
 - Productos generales y servicios: catalogo compartido completo.
-- Ventas en la blanca: documentos con partidas New Tires y ventas sin llantas
-  (productos generales o servicios), de cualquiera de las dos aplicaciones.
-- Un ticket mixto conserva todas sus partidas y su total. El reporte identifica
-  por separado el importe bruto de las partidas New Tires.
+- Sin reinicio configurado, la blanca conserva la visibilidad historica anterior:
+  documentos con partidas New Tires y ventas sin llantas de ambas aplicaciones.
+- Con WHITE_SALES_HISTORY_RESET, muestra solo ventas creadas por la blanca que
+  no estaban confirmadas en el snapshot del reinicio. La negra conserva su historial.
+- Un ticket mixto conserva todas sus partidas, subtotal, IVA y total registrados.
+- El inventario blanco y su PDF omiten llantas agotadas sin borrarlas ni cambiar
+  sus existencias. Vuelven a aparecer cuando reciben stock.
 - La clasificacion del proveedor se captura con la venta; no cambia si despues
   se edita el proveedor del catalogo.
 - Las copias previas se identifican por identidad y evidencia de la migracion,
@@ -44,6 +47,22 @@ admite UPDATE, DELETE ni TRUNCATE mediante los permisos normales de la app.
 Los documentos historicos protegidos no pueden cancelarse ni modificarse.
 Folios, garantias, ventas, existencias y registro de reintentos se confirman
 en una misma transaccion. Una solicitud repetida no genera otra venta.
+
+REINICIO DEL HISTORIAL BLANCO
+WHITE_SALES_HISTORY_RESET es un manifiesto privado Base64 con SHA-256. Se vincula
+al UUID y entorno de shared_runtime.configuration y contiene las identidades
+compuestas (tabla, id) visibles en un snapshot MVCC de solo lectura. Conservar
+exactamente el mismo valor en los siguientes despliegues. Un valor vacio,
+incompleto, alterado o de otra instancia se rechaza con un error explicito.
+No usar fechaVenta como corte: una venta puede tener fecha futura o atrasada.
+Una venta blanca confirmada despues del snapshot pertenece al historial nuevo;
+las ventas negras posteriores no se incorporan al historial blanco. Los datos,
+folios, garantias, existencias y archivos originales no se reinician ni borran.
+Las confirmaciones de reintentos anteriores se recuperan por su operacion y
+modulo originales sin descontar stock otra vez. El cambio solo afecta la vista.
+Quitar la variable restaura la visibilidad anterior; nunca restaurar un dump ni
+repetir una captura para ocultar ventas nuevas como parte de un redespliegue.
+Cada entorno necesita su propio manifiesto y evidencia privada del reinicio.
 
 DESARROLLO
 La base de desarrollo es una instancia distinta de PostgreSQL, con volumen y

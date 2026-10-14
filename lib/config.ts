@@ -22,7 +22,7 @@ export const CONFIG = {
   horarios: [
     { dia: "Lun – Vie", hora: "9:00 a.m. – 6:00 p.m." },
     { dia: "Sábado", hora: "9:00 a.m. – 5:00 p.m." },
-    { dia: "Domingo", hora: "Cerrado" },
+    { dia: "Domingo", hora: "9:00 a.m. – 4:00 p.m." },
   ],
 
   garantiaDiasPredeterminado: 60,

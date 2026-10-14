@@ -15,6 +15,7 @@ function loadModule(filename, db, cache = new Map()) {
   const mod = new Module(filename); cache.set(filename, mod);
   const native = createRequire(filename);
   mod.require = name => {
+    if (name === 'server-only') return {};
     if (name === '@/lib/db') return db;
     if (name.startsWith('@/') || name.startsWith('.')) {
       let target = name.startsWith('@/') ? path.join(root, name.slice(2)) : path.resolve(path.dirname(filename), name);
@@ -47,6 +48,10 @@ function fakeDatabase() {
     events.push(sql);
     if (sql.includes('pg_advisory_xact_lock')) return result([]);
     if (sql.startsWith('SELECT document_text FROM shared_archive.sale_originals')) return result([]);
+    if (sql.startsWith('SELECT row_to_json(v)::text AS original FROM public.')) {
+      const table = sql.includes('public.ventas_productos') ? state.productSales : state.sales;
+      return result(table[p[0]] ? [{ original: JSON.stringify(table[p[0]]) }] : []);
+    }
     if (sql.startsWith('SELECT * FROM shared_runtime.operations')) return result(state.operations[p[0]] ? [state.operations[p[0]]] : []);
     if (sql.includes("'ventas'::text AS kind") && sql.includes('request_id')) return result([
       ...Object.values(state.sales).filter(s => s.request_id === p[0]).map(s => ({ ...s, kind: 'ventas' })),
@@ -81,6 +86,7 @@ function fakeDatabase() {
     }
     if (sql.startsWith('INSERT INTO shared_runtime.operations')) {
       state.operations[p[0]] = { id: p[0], request_hash: p[1], application: 'blanca', status: sql.includes("'released'") ? 'released' : 'committed',
+        sale_kind: sql.includes("'released'") ? null : sql.includes("'ventas',$3") ? 'ventas' : p[2],
         sale_id: sql.includes("'ventas',$3") ? p[2] : p[3] ?? null };
       return result([]);
     }
@@ -90,8 +96,19 @@ function fakeDatabase() {
     }
     if (sql.startsWith('SELECT v.*,row_to_json(v)')) {
       const table = sql.includes('FROM public.ventas_productos v') ? state.productSales : state.sales;
-      const rows = Object.values(table).filter(s => !p.length || s.id === p[0] || s.folio === p[0]);
-      const scoped = rows.filter(s => table === state.productSales || !s.items.some(item => item.llantaId) || s.new_tires_indexes.length);
+      let rows = Object.values(table);
+      if (sql.includes('WHERE v.id=$1')) rows = rows.filter(s => s.id === p[0]);
+      if (sql.includes('WHERE v.folio=$1')) rows = rows.filter(s => s.folio === p[0]);
+      if (sql.includes("upper(v.garantia->>'id')=upper($1)")) rows = rows.filter(s => s.garantia?.id?.toUpperCase() === p[0].toUpperCase());
+      const resetParameter = sql.match(/v\.origen_app='blanca' AND NOT \(v\.id=ANY\(\$(\d+)::text\[\]\)\)/);
+      if (resetParameter) rows = rows.filter(s => s.origen_app === 'blanca' && !p[Number(resetParameter[1]) - 1].includes(s.id));
+      if (sql.includes("coalesce((to_jsonb(v)->>'cancelada')::boolean,false)=false")) rows = rows.filter(s => !s.cancelada);
+      const from = sql.match(/AND v\.(?:"fechaVenta"|fecha)>=\$(\d+)::timestamptz/);
+      if (from) rows = rows.filter(s => Date.parse(s.fechaVenta ?? s.fecha) >= Date.parse(p[Number(from[1]) - 1]));
+      const until = sql.match(/AND v\.(?:"fechaVenta"|fecha)<=\$(\d+)::timestamptz/);
+      if (until) rows = rows.filter(s => Date.parse(s.fechaVenta ?? s.fecha) <= Date.parse(p[Number(until[1]) - 1]));
+      const scoped = rows.filter(s => !sql.includes('NOT EXISTS(SELECT 1 FROM jsonb_array_elements(v.items)')
+        || table === state.productSales || !s.items.some(item => item.llantaId) || s.new_tires_indexes.length);
       return result(scoped.map(s => ({ ...structuredClone(s), raw_document: JSON.stringify(s) })));
     }
     throw new Error(`Unexpected test SQL: ${sql}`);
@@ -260,4 +277,215 @@ test('sales report retains mixed document totals and excludes cancelled document
   assert.equal(report.totalRow[7], '$1,350.00'); assert.equal(report.columns.length, 10);
   assert.ok(report.columns.every(column => column.header !== 'Importe New Tires'));
   assert.match(report.rows[0][3], /A B/); assert.match(report.rows[0][3], /C D/);
+});
+
+const RESET_INSTANCE = '6209cdf3-7929-4a32-9c7b-75df1704631f';
+const RESET_ID = 'ad2bbf36-d534-4894-95db-dad86507a223';
+const historyPolicy = () => loadModule('lib/data/white-sales-history.ts', {});
+function resetInput(excludedIds = { ventas: [], ventas_productos: [] }, overrides = {}) {
+  return { databaseInstanceId: RESET_INSTANCE, environment: 'development', resetId: RESET_ID,
+    resetAtUtc: '2026-10-14T12:00:00.000Z', snapshotId: '100:102:101', excludedIds, ...overrides };
+}
+async function withHistoryReset(excludedIds, run) {
+  const keys = ['WHITE_SALES_HISTORY_RESET', 'SHARED_DATABASE_ID', 'SHARED_DATABASE_ENVIRONMENT'];
+  const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const policy = historyPolicy();
+  const manifest = policy.buildWhiteSalesHistoryReset(resetInput(excludedIds));
+  process.env.WHITE_SALES_HISTORY_RESET = policy.serializeWhiteSalesHistoryReset(manifest);
+  process.env.SHARED_DATABASE_ID = RESET_INSTANCE;
+  process.env.SHARED_DATABASE_ENVIRONMENT = 'development';
+  try { return await run(manifest, policy); }
+  finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+}
+
+test('white reset manifest is deterministic, checksummed, source-bound and private to its instance/environment', () => {
+  const policy = historyPolicy();
+  const manifest = policy.buildWhiteSalesHistoryReset(resetInput({ ventas: ['z', 'a'], ventas_productos: ['a'] }));
+  assert.deepEqual(manifest.excludedIds, { ventas: ['a', 'z'], ventas_productos: ['a'] });
+  assert.equal(manifest.application, 'blanca'); assert.equal(manifest.sourceSchema, 'public');
+  assert.deepEqual(manifest.sourceTables, ['ventas', 'ventas_productos']);
+  const { sha256, ...body } = manifest;
+  assert.equal(sha256, createHash('sha256').update(JSON.stringify(body), 'utf8').digest('hex'));
+  const encoded = policy.serializeWhiteSalesHistoryReset(manifest);
+  assert.deepEqual(policy.parseWhiteSalesHistoryReset(encoded, RESET_INSTANCE, 'development'), manifest);
+  assert.equal(policy.serializeWhiteSalesHistoryReset(policy.buildWhiteSalesHistoryReset(resetInput({ ventas: ['a', 'z'], ventas_productos: ['a'] }))), encoded);
+  assert.throws(() => policy.parseWhiteSalesHistoryReset(encoded, RESET_ID, 'development'), /reinicio del historial/);
+  assert.throws(() => policy.parseWhiteSalesHistoryReset(encoded, RESET_INSTANCE, 'production'), /reinicio del historial/);
+  assert.throws(() => policy.parseWhiteSalesHistoryReset(encoded, undefined, 'development'), /reinicio del historial/);
+});
+
+for (const [name, change] of [
+  ['different application', value => ({ ...value, application: 'negra' })],
+  ['different source schema', value => ({ ...value, sourceSchema: 'other' })],
+  ['different source table', value => ({ ...value, sourceTables: ['ventas', 'ventas_fake'] })],
+  ['unexpected field', value => ({ ...value, ignored: true })],
+  ['unknown version', value => ({ ...value, version: 2 })],
+  ['damaged checksum', value => ({ ...value, sha256: '0'.repeat(64) })],
+  ['missing module baseline', value => ({ ...value, excludedIds: { ventas: [] } })],
+  ['duplicate identity', value => ({ ...value, excludedIds: { ventas: ['same', 'same'], ventas_productos: [] } })],
+  ['invalid identity', value => ({ ...value, excludedIds: { ventas: ['\u0000'], ventas_productos: [] } })],
+  ['invalid UTC date', value => ({ ...value, resetAtUtc: '2026-02-30T12:00:00.000Z' })],
+  ['non-UTC date', value => ({ ...value, resetAtUtc: '2026-10-14T06:00:00.000-06:00' })],
+  ['invalid MVCC snapshot', value => ({ ...value, snapshotId: '100-102' })],
+  ['non-string environment', value => ({ ...value, environment: ['development'] })],
+]) {
+  test('reset rejects ' + name + ' explicitly without trusting partial configuration', () => {
+    const policy = historyPolicy();
+    const manifest = policy.buildWhiteSalesHistoryReset(resetInput());
+    const encoded = Buffer.from(JSON.stringify(change(manifest)), 'utf8').toString('base64');
+    assert.throws(() => policy.parseWhiteSalesHistoryReset(encoded, RESET_INSTANCE, 'development'), /reinicio del historial/);
+  });
+}
+
+test('reset rejects empty, malformed, noncanonical or excessive BASE64 without echoing the private value', () => {
+  const policy = historyPolicy();
+  const encoded = policy.serializeWhiteSalesHistoryReset(policy.buildWhiteSalesHistoryReset(resetInput()));
+  for (const value of ['', 'not-base64', encoded + '\n', Buffer.from('{oops').toString('base64'), 'a'.repeat(120_004)]) {
+    assert.throws(() => policy.parseWhiteSalesHistoryReset(value, RESET_INSTANCE, 'development'), error =>
+      /reinicio del historial/.test(error.message) && (!value || !error.message.includes(value)));
+  }
+});
+
+test('reset SQL uses composite module identity and bound parameters rather than dates or ID interpolation', () => {
+  const policy = historyPolicy();
+  const hostile = "sale' OR true--";
+  const manifest = policy.buildWhiteSalesHistoryReset(resetInput({ ventas: [hostile], ventas_productos: ['product-sale'] }));
+  const params = ['existing-filter'];
+  const sql = policy.whiteSalesHistoryPredicate('ventas', params, manifest);
+  assert.equal(sql, "(v.origen_app='blanca' AND NOT (v.id=ANY($2::text[])))");
+  assert.deepEqual(params, ['existing-filter', [hostile]]); assert.equal(sql.includes(hostile), false);
+  const productParams = [];
+  policy.whiteSalesHistoryPredicate('ventas_productos', productParams, manifest);
+  assert.deepEqual(productParams, [['product-sale']]);
+  assert.equal(policy.whiteSalesHistoryPredicate('ventas', [], null), 'true');
+});
+
+test('baseline hides old future-dated white documents, keeps new backdated white documents and excludes every future black sale', async () => {
+  const fake = fakeDatabase();
+  const service = { servicioId: 'service', nombre: 'Servicio', cantidad: 1, precioUnitario: 30, subtotal: 30 };
+  fake.state.sales.old = sampleRow({ id: 'old', folio: 'V-0001', origen_app: 'blanca', fechaVenta: '2099-01-01T00:00:00Z', imported_read_only: false });
+  fake.state.sales.new = sampleRow({ id: 'new', folio: 'V-0002', origen_app: 'blanca', fechaVenta: '2000-01-01T00:00:00Z', imported_read_only: false });
+  fake.state.sales.blackTire = sampleRow({ id: 'black-tire', folio: 'SI-0003', fechaVenta: '2100-01-01T00:00:00Z' });
+  fake.state.sales.blackService = sampleRow({ id: 'black-service', folio: 'SI-0004', items: [service], new_tires_indexes: [] });
+  fake.state.productSales.old = sampleRow({ id: 'old-product', folio: 'VP-0001', origen_app: 'blanca', items: [service], new_tires_indexes: [] });
+  fake.state.productSales.new = sampleRow({ id: 'new-product', folio: 'VP-0002', origen_app: 'blanca', items: [service], new_tires_indexes: [] });
+  fake.state.productSales.black = sampleRow({ id: 'black-product', folio: 'VP-0003', items: [service], new_tires_indexes: [] });
+  const before = structuredClone(fake.state);
+  const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  await withHistoryReset({ ventas: ['old'], ventas_productos: ['old-product'] }, async () => {
+    const sales = await api.sharedSales({ incluirCanceladas: true });
+    assert.deepEqual(sales.map(s => s.id).sort(), ['new', 'new-product']);
+    assert.equal((await api.sharedFindSale('new')).id, 'new');
+    assert.equal((await api.sharedFindSale('new-product')).storageKind, 'ventas_productos');
+    assert.equal(await api.sharedFindSale('black-tire'), null);
+    assert.equal(await api.sharedFindSale('black-service'), null);
+    assert.equal(await api.sharedFindSale('black-product'), null);
+  });
+  assert.deepEqual(fake.state, before, 'A UI reset must not change any canonical row, journal, movement, stock or counter.');
+  assert.equal(fake.events.some(sql => /^(INSERT|UPDATE|DELETE|ALTER|CREATE|TRUNCATE)/.test(sql)), false);
+  assert.equal((await api.sharedSales({ incluirCanceladas: true })).length, 7, 'Removing the private policy rolls back visibility without a DB restore.');
+});
+
+test('old direct ticket, folio, warranty and original JSON paths cannot recover a hidden document', async () => {
+  const fake = fakeDatabase();
+  fake.state.sales.old = sampleRow({ id: 'old', folio: 'V-0001', origen_app: 'blanca', imported_read_only: false,
+    garantia: { id: 'GAR-2026-0001', activa: true, fechaInicio: '2026-10-14', fechaFin: '2999-10-14', diasGarantia: 30 } });
+  const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  await withHistoryReset({ ventas: ['old'], ventas_productos: [] }, async () => {
+    assert.equal(await api.sharedFindSale('old'), null);
+    assert.equal(await api.sharedFindSale('V-0001', 'folio'), null);
+    assert.equal(await api.sharedFindSale('gar-2026-0001', 'garantia'), null);
+    assert.deepEqual(await api.sharedWarranties(), []);
+    assert.equal(fake.events.some(sql => sql.startsWith('SELECT document_text FROM shared_archive.sale_originals')), false,
+      'Original downloads must first pass the visible sale lookup.');
+    assert.equal(await api.sharedCancelSale('old', 'Must stay hidden'), null);
+    assert.equal(await api.sharedMarkInvoiced('old', {}), null);
+    assert.equal(fake.events.some(sql => /^(UPDATE|INSERT|DELETE)/.test(sql)), false, 'Passing a transaction client cannot bypass history visibility.');
+  });
+});
+
+test('same textual ID in different modules is hidden only in its captured module', async () => {
+  const fake = fakeDatabase();
+  fake.state.sales.same = sampleRow({ id: 'same', folio: 'V-0001', origen_app: 'blanca', imported_read_only: false });
+  fake.state.productSales.same = sampleRow({ id: 'same', folio: 'VP-0001', origen_app: 'blanca', imported_read_only: false,
+    items: [{ productoId: 'product', nombre: 'Producto', cantidad: 1, precioUnitario: 30 }], new_tires_indexes: [] });
+  const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  await withHistoryReset({ ventas: ['same'], ventas_productos: [] }, async () => {
+    const found = await api.sharedFindSale('same');
+    assert.equal(found.storageKind, 'ventas_productos'); assert.equal(found.folio, 'VP-0001');
+    assert.equal((await api.sharedSales()).length, 1);
+  });
+});
+
+test('a confirmed hidden retry acknowledges the same module and flag without repeating stock, folio, movement or release', async () => {
+  const fake = fakeDatabase();
+  const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  const sale = await api.sharedCreateSale(input());
+  fake.state.productSales[sale.id] = sampleRow({ id: sale.id, folio: 'VP-0001', origen_app: 'negra' });
+  const before = structuredClone(fake.state);
+  await withHistoryReset({ ventas: [sale.id], ventas_productos: [] }, async () => {
+    const replay = await api.sharedCreateSale(input());
+    assert.equal(replay.id, sale.id); assert.equal(replay.storageKind, 'ventas');
+    assert.equal(replay.fueraDelHistorialActual, true);
+    assert.equal(await api.sharedFindSale(sale.id), null, 'Acknowledgement must not re-expose the document to normal readers.');
+    assert.equal(fake.state.operations[input().operacionId].status, 'committed');
+    assert.equal(Object.hasOwn(fake.state.sales[sale.id], 'fueraDelHistorialActual'), false);
+  });
+  assert.deepEqual(fake.state, before);
+  assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 0);
+  assert.equal(fake.state.movements.length, 1); assert.equal(fake.state.counters['V-'], 1);
+  assert.equal(fake.events.filter(sql => sql.startsWith('INSERT INTO ventas(')).length, 1);
+  assert.equal(fake.events.filter(sql => sql.startsWith('INSERT INTO shared_runtime.operations')).length, 1);
+});
+
+test('hidden request reconciliation without an existing journal restores only its committed outcome', async () => {
+  const fake = fakeDatabase(); const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  const sale = await api.sharedCreateSale(input()); delete fake.state.operations[input().operacionId];
+  await withHistoryReset({ ventas: [sale.id], ventas_productos: [] }, async () => {
+    const replay = await api.sharedCreateSale(input());
+    assert.equal(replay.id, sale.id); assert.equal(replay.fueraDelHistorialActual, true);
+    assert.equal(fake.state.operations[input().operacionId].status, 'committed');
+    assert.equal(fake.state.operations[input().operacionId].sale_kind, 'ventas');
+    assert.equal(fake.state.movements.length, 1); assert.equal(fake.state.counters['V-'], 1);
+    assert.equal(fake.events.some(sql => sql.includes("VALUES($1,$2,'blanca','released')")), false);
+  });
+});
+
+test('lost acknowledgement of a post-reset sale recovers visibly and deducts stock once', async () => {
+  const fake = fakeDatabase(); const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  await withHistoryReset({ ventas: ['earlier'], ventas_productos: [] }, async () => {
+    fake.loseNextCommit(); const sale = await api.sharedCreateSale(input());
+    assert.equal(sale.fueraDelHistorialActual, undefined);
+    assert.equal((await api.sharedFindSale(sale.id)).id, sale.id);
+    assert.equal(Object.keys(fake.state.sales).length, 1); assert.equal(fake.state.movements.length, 1);
+    assert.equal(fake.state.counters['V-'], 1); assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 0);
+  });
+});
+
+test('date filters still bind their own parameters after the baseline parameter', async () => {
+  const fake = fakeDatabase();
+  fake.state.sales.new = sampleRow({ id: 'new', folio: 'V-0002', origen_app: 'blanca', fechaVenta: '2026-10-15T15:00:00Z', imported_read_only: false });
+  const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+  await withHistoryReset({ ventas: [], ventas_productos: [] }, async () => {
+    assert.equal((await api.sharedSales({ fechaInicio: '2026-10-15T00:00:00Z', fechaFin: '2026-10-15T23:59:59Z' })).length, 1);
+    assert.equal((await api.sharedSales({ fechaInicio: '2026-10-16T00:00:00Z' })).length, 0);
+    assert.equal((await api.sharedSales({ fechaFin: '2026-10-14T23:59:59Z' })).length, 0);
+  });
+});
+
+test('an explicitly configured invalid reset fails reads and creation before any database access', async () => {
+  const saved = process.env.WHITE_SALES_HISTORY_RESET; process.env.WHITE_SALES_HISTORY_RESET = '';
+  try {
+    const fake = fakeDatabase(); const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+    await assert.rejects(api.sharedSales(), /reinicio del historial/);
+    await assert.rejects(api.sharedFindSale('sale'), /reinicio del historial/);
+    await assert.rejects(api.sharedCreateSale(input()), /reinicio del historial/);
+    assert.deepEqual(fake.events, []);
+  } finally {
+    if (saved === undefined) delete process.env.WHITE_SALES_HISTORY_RESET; else process.env.WHITE_SALES_HISTORY_RESET = saved;
+  }
 });

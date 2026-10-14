@@ -10,6 +10,7 @@ import { obtenerInventario } from './actions';
 import { SISTEMA_BODEGAS, generarCodigoAuxiliar } from '@/lib/config-sistema';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { getTotalStock, type Llanta, type BodegaId } from '@/types';
+import { tireHasInventoryStock } from '@/lib/tire-inventory-availability';
 
 export default function InventarioPage() {
   const [inventario, setInventario] = useState<Llanta[]>([]);
@@ -22,14 +23,12 @@ export default function InventarioPage() {
     setInventario,
   );
 
+  const inventarioDisponible = inventario.filter((llanta) => tireHasInventoryStock(llanta, bodegaFiltro));
   // Filtrar inventario
-  const inventarioFiltrado = inventario
+  const inventarioFiltrado = inventarioDisponible
     .filter((llanta) => {
       if (estadoFiltro === 'activos' && !llanta.activo) return false;
       if (estadoFiltro === 'inactivos' && llanta.activo) return false;
-      if (bodegaFiltro && (llanta.stockPorBodega[bodegaFiltro] || 0) === 0) {
-        return false;
-      }
       if (busqueda.trim()) {
         const term = busqueda.toLowerCase();
         const codigoAux = generarCodigoAuxiliar(llanta.medida).toLowerCase();
@@ -69,7 +68,7 @@ export default function InventarioPage() {
     <div>
       <PageHeader
         title="Inventario"
-        subtitle={`${inventario.length} llantas NEW TIRES · Existencias compartidas`}
+        subtitle={`${inventarioFiltrado.length} llantas NEW TIRES con stock · Inventario compartido`}
       />
 
       {error && <p role="alert" className="mb-4 text-red-400">{error}</p>}
@@ -114,7 +113,7 @@ export default function InventarioPage() {
           <CardBody>
             <div className="text-center py-12 text-[var(--text-muted)]">
               <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No se encontraron productos</p>
+              <p>No se encontraron llantas con existencias</p>
               {busqueda || bodegaFiltro ? (
                 <button
                   className="mt-2 text-sm text-[var(--accent)] hover:underline"
@@ -230,7 +229,7 @@ export default function InventarioPage() {
       {/* Summary */}
       {inventarioFiltrado.length > 0 && (
         <div className="mt-4 text-sm text-[var(--text-muted)] text-center">
-          Mostrando {inventarioFiltrado.length} de {inventario.length} productos
+          Mostrando {inventarioFiltrado.length} de {inventarioDisponible.length} llantas con existencias
         </div>
       )}
     </div>

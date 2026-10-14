@@ -42,7 +42,7 @@ function loadAdapters(env,database){
     }
   }
   Module._resolveFilename=function(request,parent,...args){return originalResolve.call(this,request.startsWith('@/')?path.join(root,request.slice(2)):request,parent,...args);};
-  Module._load=function(request,parent,isMain){return request==='pg'?{...pg,Pool:TestPool}:originalLoad.call(this,request,parent,isMain);};
+  Module._load=function(request,parent,isMain){return request==='server-only'?{}:request==='pg'?{...pg,Pool:TestPool}:originalLoad.call(this,request,parent,isMain);};
   require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fsSync.readFileSync(filename,'utf8'),{
     compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true},
   }).outputText,filename);

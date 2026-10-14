@@ -10,6 +10,7 @@ import { validarBodega, validarCantidad } from './validation';
 import { validarTexto } from './normalizado';
 import { NEW_TIRES, nextFolio, originalSaleJson, providerKey, saleScopeSql, tireScopeSql } from './shared-database';
 import type { SharedTire, SharedProduct, SharedService } from './shared-database-catalog';
+import { whiteSaleBelongsToCurrentHistory, whiteSalesHistoryPredicate, whiteSalesHistoryReset } from './white-sales-history';
 
 export type SaleKind = 'ventas' | 'ventas_productos';
 type RawItem = Record<string, unknown> & { llantaSnapshot?: Record<string, unknown> };
@@ -96,11 +97,13 @@ function selectSql(kind: SaleKind): string {
       AND v.imported_read_only=true AND v.origen_app='negra'`;
 }
 export async function sharedSales(filters?: { fechaInicio?: string; fechaFin?: string; incluirCanceladas?: boolean }): Promise<Venta[]> {
+  const historyReset = whiteSalesHistoryReset();
   const all: Venta[] = [];
   for (const kind of ['ventas', 'ventas_productos'] as const) {
     const date = kind === 'ventas' ? 'v."fechaVenta"' : 'v.fecha';
     let sql = `${selectSql(kind)} WHERE ${kind === 'ventas' ? saleScopeSql : 'true'}`;
     const params: unknown[] = [];
+    sql += ` AND ${whiteSalesHistoryPredicate(kind, params, historyReset)}`;
     // JSON access also handles historical product-sales schemas without a cancel column.
     if (!filters?.incluirCanceladas) sql += ` AND coalesce((to_jsonb(v)->>'cancelada')::boolean,false)=false`;
     if (filters?.fechaInicio) { params.push(filters.fechaInicio); sql += ` AND ${date}>=$${params.length}::timestamptz`; }
@@ -111,12 +114,15 @@ export async function sharedSales(filters?: { fechaInicio?: string; fechaFin?: s
   return all.sort((a, b) => Date.parse(b.fechaVenta) - Date.parse(a.fechaVenta) || b.id.localeCompare(a.id));
 }
 export async function sharedFindSale(value: string, by: 'id' | 'folio' | 'garantia' = 'id', client?: PoolClient): Promise<Venta | null> {
+  const historyReset = whiteSalesHistoryReset();
   const found: Venta[] = [];
   const query = client ? client.query.bind(client) : db.query.bind(db);
   for (const kind of ['ventas', 'ventas_productos'] as const) {
     if (by === 'garantia' && kind !== 'ventas') continue;
     const condition = by === 'garantia' ? `upper(v.garantia->>'id')=upper($1)` : `v.${by}=$1`;
-    const result = await query(`${selectSql(kind)} WHERE ${condition} AND ${kind === 'ventas' ? saleScopeSql : 'true'}`, [value]);
+    const params: unknown[] = [value];
+    const visibility = whiteSalesHistoryPredicate(kind, params, historyReset);
+    const result = await query(`${selectSql(kind)} WHERE ${condition} AND ${kind === 'ventas' ? saleScopeSql : 'true'} AND ${visibility}`, params);
     found.push(...(result.rows as SharedSaleRow[]).map(row => adaptSharedSale(row, kind)));
   }
   if (found.length > 1) throw new Error('La referencia coincide con más de un documento; se requiere su módulo de origen.');
@@ -126,6 +132,22 @@ export async function sharedFindSale(value: string, by: 'id' | 'folio' | 'garant
     if (original) { sale.datosOriginalesJson = original; sale.datosOriginales = JSON.parse(original); }
   }
   return sale ?? null;
+}
+/** Internal acknowledgement lookup, never used by public ticket/history routes.
+ * A reset changes presentation, not the durable outcome of an earlier request.
+ * The caller first proves the white origin and matching request hash. Use the
+ * recorded module as well as ID so a collision in the other table is harmless.
+ */
+async function committedSale(client: PoolClient, kind: SaleKind | null, id: string): Promise<Venta | null> {
+  if (kind !== 'ventas' && kind !== 'ventas_productos') throw new Error('La operación confirmada no identifica su módulo de origen.');
+  const result = await client.query<SharedSaleRow>(`${selectSql(kind)} WHERE v.id=$1`, [id]);
+  if (result.rows.length > 1) throw new Error('La operación confirmada tiene más de un documento.');
+  const row = result.rows[0];
+  if (!row) return null;
+  if (row.origen_app !== 'blanca') throw new Error('La operación confirmada corresponde a otra aplicación.');
+  const sale = adaptSharedSale(row, kind);
+  if (!whiteSaleBelongsToCurrentHistory(kind, id, row.origen_app)) sale.fueraDelHistorialActual = true;
+  return sale;
 }
 export async function sharedWarranties(): Promise<Venta[]> {
   const today = getMexicoDateString();
@@ -138,7 +160,7 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 export const sharedSaleRequestHash = (value: unknown) => createHash('sha256').update(canonical(value)).digest('hex');
-interface Operation { id: string; request_hash: string; status: 'committed' | 'released'; sale_id: string | null; application: string }
+interface Operation { id: string; request_hash: string; status: 'committed' | 'released'; sale_kind: SaleKind | null; sale_id: string | null; application: string }
 interface ExistingRequest { id: string; kind: SaleKind; request_hash: string; origen_app: string }
 export class SharedDatabaseReleasedError extends Error { readonly operationStatus = 'released' as const; }
 function validOperation(id: unknown): asserts id is string {
@@ -156,7 +178,7 @@ async function existingRequest(client: PoolClient, id: string): Promise<Existing
 }
 async function committedResult(client: PoolClient, operationId: string, hash: string, previous: ExistingRequest): Promise<Venta> {
   if (previous.origen_app !== 'blanca' || previous.request_hash !== hash) throw new Error('Este identificador ya corresponde a otra venta.');
-  const sale = await sharedFindSale(previous.id, 'id', client);
+  const sale = await committedSale(client, previous.kind, previous.id);
   if (!sale) throw new Error('No se encuentra el documento confirmado.');
   await client.query(`INSERT INTO shared_runtime.operations(id,request_hash,application,status,sale_kind,sale_id)
     VALUES($1,$2,'blanca','committed',$3,$4) ON CONFLICT(id) DO NOTHING`, [operationId, hash, previous.kind, previous.id]);
@@ -179,6 +201,8 @@ function validateSale(input: VentaInput): void {
   }
 }
 export async function sharedCreateSale(input: VentaInput, domain: 'general' | 'sistema' = 'general'): Promise<Venta> {
+  // Refuse an invalid runtime policy before the first business transaction.
+  whiteSalesHistoryReset();
   if (!['general', 'sistema'].includes(domain)) throw new Error('Dominio de ventas inválido.');
   const request = { input, dominio: domain }; // Matches the previous recoverable-checkout journal.
   const hash = sharedSaleRequestHash(request);
@@ -202,7 +226,7 @@ export async function sharedCreateSale(input: VentaInput, domain: 'general' | 's
     if (prior) {
       if (prior.status === 'released') throw new SharedDatabaseReleasedError('La operación anterior se canceló. Inicia una nueva venta.');
       if (prior.application !== 'blanca' || prior.request_hash !== hash) throw new Error('Este identificador ya corresponde a otra venta.');
-      const sale = prior.sale_id ? await sharedFindSale(prior.sale_id, 'id', client) : null;
+      const sale = prior.sale_id ? await committedSale(client, prior.sale_kind, prior.sale_id) : null;
       if (!sale) throw new Error('La operación confirmada no tiene un documento verificable.');
       return sale;
     }
@@ -263,7 +287,7 @@ export async function sharedCreateSale(input: VentaInput, domain: 'general' | 's
     [saleId, folio, JSON.stringify({ nombre: input.clienteNombre, ...(input.clienteTelefono === undefined ? {} : { telefono: input.clienteTelefono }) }),
       JSON.stringify(items), amounts.subtotal, amounts.iva, amounts.total, input.metodoPago, JSON.stringify(warranty), domain, idOperation, hash]);
     await client.query(`INSERT INTO shared_runtime.operations(id,request_hash,application,status,sale_kind,sale_id) VALUES($1,$2,'blanca','committed','ventas',$3)`, [idOperation, hash, saleId]);
-    const sale = await sharedFindSale(saleId, 'id', client); if (!sale) throw new Error('No se pudo recuperar la venta registrada.'); return sale;
+    const sale = await committedSale(client, 'ventas', saleId); if (!sale) throw new Error('No se pudo recuperar la venta registrada.'); return sale;
   }); } catch (error) {
     if (error instanceof SharedDatabaseReleasedError) throw error;
     // A lost COMMIT acknowledgement is resolved under the same transaction lock.
@@ -276,7 +300,7 @@ export async function sharedCreateSale(input: VentaInput, domain: 'general' | 's
         if (prior) {
           if (prior.status === 'released') return { released: true };
           if (prior.application !== 'blanca' || prior.request_hash !== hash || !prior.sale_id) return {};
-          const sale = await sharedFindSale(prior.sale_id, 'id', client);
+          const sale = await committedSale(client, prior.sale_kind, prior.sale_id);
           return sale ? { sale } : {};
         }
         const existing = await existingRequest(client, idOperation);

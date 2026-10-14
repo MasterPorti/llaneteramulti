@@ -61,6 +61,8 @@ export interface FacturaInfo {
 }
 
 export interface Venta {
+  /** A confirmed retry may acknowledge a sale hidden by the current UI reset. Never persisted. */
+  fueraDelHistorialActual?: true;
   storageKind?: 'ventas' | 'ventas_productos';
   ivaPolitica?: 'incluido_16' | null;
   soloLecturaMigrada?: boolean;

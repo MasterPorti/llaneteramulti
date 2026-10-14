@@ -140,7 +140,7 @@ export default function NuevaVentaPage() {
       const result = await crearVenta(saved.payload);
       if (result.success && result.data) {
         pendingSale.clear(saved.id);
-        router.push(`/inventario/ventas/${result.data.id}`);
+        router.push(result.data.fueraDelHistorialActual ? '/ventas?operacion=anterior' : `/inventario/ventas/${result.data.id}`);
         return;
       }
       if (result.operationStatus === 'released') pendingSale.clear(saved.id);
