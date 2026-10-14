@@ -55,7 +55,8 @@ function fakeDatabase() {
     if (sql.startsWith('SELECT id FROM ')) return result([]);
     if (sql.startsWith('SELECT * FROM llantas')) {
       const row = state.tires[p[0]];
-      if (!row || (sql.includes('activo=true') && !row.activo) || (sql.includes('origen_app') && row.origen_app !== 'blanca' && row.proveedor !== 'COMERCIALIZADORA DE NEW TIRES')) return result([]);
+      const provider = row?.proveedor?.trim().replace(/\s+/g, ' ').toLocaleUpperCase('es-MX');
+      if (!row || (sql.includes('activo=true') && !row.activo) || (sql.includes('regexp_replace') && provider !== 'COMERCIALIZADORA DE NEW TIRES')) return result([]);
       return result([structuredClone(row)]);
     }
     if (sql.startsWith('SELECT * FROM productos')) return result(state.products[p[0]] ? [structuredClone(state.products[p[0]])] : []);
@@ -90,7 +91,7 @@ function fakeDatabase() {
     if (sql.startsWith('SELECT v.*,row_to_json(v)')) {
       const table = sql.includes('FROM public.ventas_productos v') ? state.productSales : state.sales;
       const rows = Object.values(table).filter(s => !p.length || s.id === p[0] || s.folio === p[0]);
-      const scoped = rows.filter(s => table === state.productSales || s.origen_app === 'blanca' || s.new_tires_indexes.length);
+      const scoped = rows.filter(s => table === state.productSales || !s.items.some(item => item.llantaId) || s.new_tires_indexes.length);
       return result(scoped.map(s => ({ ...structuredClone(s), raw_document: JSON.stringify(s) })));
     }
     throw new Error(`Unexpected test SQL: ${sql}`);
@@ -215,12 +216,32 @@ test('cancel retry restores stock once and keeps the document', async () => {
   assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 2); assert.equal(fake.state.movements.length, 2);
   assert.equal(Object.keys(fake.state.sales).length, 1); assert.equal(fake.state.sales[sale.id].cancelada, true);
 });
-test('provider scope rejects a foreign tire even when its ID is supplied directly', async () => {
-  const fake = fakeDatabase(); fake.state.tires.tire.proveedor = 'Otro';
+for (const origin of ['negra', 'blanca']) for (const provider of ['Otro', null, '']) {
+  test(`provider scope rejects ${origin} tire with provider ${JSON.stringify(provider)} supplied directly`, async () => {
+    const fake = fakeDatabase(); Object.assign(fake.state.tires.tire, { proveedor: provider, origen_app: origin });
+    const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+    await assert.rejects(api.sharedCreateSale(input()), /catálogo permitido/);
+    assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 2); assert.equal(fake.state.movements.length, 0);
+    assert.equal(Object.keys(fake.state.sales).length, 0);
+  });
+}
+
+test('white-origin tire-only history is hidden unless its recorded supplier is New Tires', async () => {
+  const fake = fakeDatabase(); fake.state.sales.sale = sampleRow({ origen_app: 'blanca', new_tires_indexes: [] });
   const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
-  await assert.rejects(api.sharedCreateSale(input()), /catálogo permitido/);
-  assert.equal(fake.state.tires.tire.stockPorBodega['bodega-1'], 2); assert.equal(fake.state.movements.length, 0);
+  assert.deepEqual(await api.sharedSales(), []); assert.equal(await api.sharedFindSale('sale'), null);
+  assert.equal(fake.state.sales.sale.items.length, 2, 'Visibility must not remove original rows or lines.');
 });
+
+for (const kind of ['productoId', 'servicioId']) {
+  test(`black-origin non-tire ${kind} sale remains visible with its recorded zero IVA`, async () => {
+    const fake = fakeDatabase(); fake.state.sales.sale = sampleRow({ items: [{ [kind]: 'catalog-id', nombre: 'Prueba', cantidad: 1, precioUnitario: 30, subtotal: 30 }],
+      new_tires_indexes: [], subtotal: 30, iva: 0, total: 30, imported_read_only: false });
+    const api = loadModule('lib/data/shared-database-ventas.ts', fake.database);
+    assert.equal((await api.sharedSales()).length, 1);
+    const sale = await api.sharedFindSale('sale'); assert.equal(sale.total, 30); assert.equal(sale.iva, 0);
+  });
+}
 test('shared mode dispatch never queries the legacy outbox while reading history', async () => {
   const saved = process.env.SHARED_DATABASE_MODE; process.env.SHARED_DATABASE_MODE = 'true';
   try {

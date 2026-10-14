@@ -6,15 +6,27 @@ adapta ese esquema y no mantiene una segunda copia de existencias ni de ventas.
 CENTRAL_INVENTORY_DATABASE_URL debe estar ausente, incluso como variable vacia.
 
 VISIBILIDAD Y DOCUMENTOS
-- Llantas: New Tires y las propias de la aplicacion blanca.
+- Llantas en la blanca: exclusivamente COMERCIALIZADORA DE NEW TIRES, sin
+  excepciones por aplicacion de origen. SistemaBodega conserva todo el catalogo.
 - Productos generales y servicios: catalogo compartido completo.
-- Ventas: propias blancas, documentos con partidas New Tires y ventas de productos.
+- Ventas en la blanca: documentos con partidas New Tires y ventas sin llantas
+  (productos generales o servicios), de cualquiera de las dos aplicaciones.
 - Un ticket mixto conserva todas sus partidas y su total. El reporte identifica
   por separado el importe bruto de las partidas New Tires.
 - La clasificacion del proveedor se captura con la venta; no cambia si despues
   se edita el proveedor del catalogo.
 - Las copias previas se identifican por identidad y evidencia de la migracion,
   nunca solo por nombre, medida o descripcion. Existencias replicadas no se suman.
+
+PRODUCTOS GENERALES
+Ambas aplicaciones crean y editan el mismo registro de producto. La blanca
+incluye nombre, descripcion, precio de venta, costo opcional y fotografia.
+Existencia inicial cero se conserva; editar los datos o la foto no reemplaza
+las existencias. Un costo vacio significa NULL, distinto de un costo cero.
+Las fotos se validan y se guardan junto al producto en una transaccion.
+Reemplazar o quitar una foto conserva el archivo anterior; desactivar un
+producto conserva su registro y todas sus ventas. La apariencia de cada app
+es independiente de estos datos compartidos.
 
 IVA Y COSTOS
 Cada aplicacion conserva su politica actual para ventas nuevas. La blanca
@@ -90,6 +102,9 @@ PRUEBAS
 node --test scripts/shared-database-guard.test.mjs
 node --test scripts/shared-database-white.test.mjs
 node --test scripts/shared-database/merge-plan.test.mjs
+La suite npm run test:shared-database revisa tambien los SQL de SistemaBodega.
+Busca ese repositorio en ../sistemaBodega; para otra carpeta usar la variable
+SHARED_TEST_BLACK_ROOT con su ruta explicita.
 El runner integration.mjs exige una conexion privada local y una base de pruebas
 separada, nunca la URL publicada. Ver su cabecera para argumentos explicitos.
 

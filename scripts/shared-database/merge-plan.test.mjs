@@ -106,6 +106,20 @@ test('historical supplier uses archived evidence despite a changed current catal
   const scope = buildMergePlan(black, white).scopes[0];
   assert.equal(scope.provider_key, supplier); assert.equal(scope.evidence, 'archived-supplier-at-prior-migration');
 });
+
+test('visibility summary includes non-tire sales from black without excluding data from the union', () => {
+  const { black, white } = fixture();
+  const base = JSON.parse(black['public.ventas'][0]);
+  black['public.ventas'].push(JSON.stringify({ ...base, id: 'black-service', folio: 'SI-0011',
+    items: [{ servicioId: 'service-black', servicioNombre: 'Servicio', cantidad: 1, precioUnitario: 116, subtotal: 116 }] }));
+  black['public.ventas'].push(JSON.stringify({ ...base, id: 'other-supplier', folio: 'SI-0012',
+    items: base.items.map(item => ({ ...item, proveedorSnapshot: 'Otro proveedor' })) }));
+  const before = JSON.stringify({ black, white });
+  const plan = buildMergePlan(black, white);
+  assert.equal(plan.summary.whiteVisibleSales, 2);
+  assert.equal(plan.tables['public.ventas'].length, 3, 'Hidden tickets remain in the shared database.');
+  assert.equal(JSON.stringify({ black, white }), before);
+});
 test('a recorded explicit NULL supplier snapshot is not invented from current catalog', () => {
   const { black, white } = fixture();
   const modifyLine = sale => { sale.items[0].proveedorSnapshot = null; };

@@ -13,7 +13,7 @@
     "test:pdf": "node --test scripts/reportes-pdf.test.mjs",
     "test:shared-stock": "node --test tests/shared-stock.test.mjs tests/shared-stock-postgres.test.mjs app/_components/pendingSale.test.mjs",
     "migrate:new-tires": "node scripts/migrate-new-tires.mjs",
-    "test:shared-database": "node --test scripts/shared-database-guard.test.mjs scripts/shared-database-white.test.mjs scripts/shared-database/merge-plan.test.mjs scripts/shared-database/capture.test.mjs scripts/shared-database/production.test.mjs"
+    "test:shared-database": "node --test scripts/shared-database-guard.test.mjs scripts/shared-database-white.test.mjs scripts/shared-product-images.test.mjs app/productos/producto-form-values.test.mjs scripts/shared-database/merge-plan.test.mjs scripts/shared-database/capture.test.mjs scripts/shared-database/production.test.mjs"
   },
   "dependencies": {
     "@types/jsbarcode": "^3.11.4",
@@ -26,7 +26,8 @@
     "next": "16.1.4",
     "pg": "^8.20.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "sharp": "0.34.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

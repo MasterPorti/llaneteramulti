@@ -80,6 +80,9 @@ try {
   await denied('UPDATE ventas SET origen_app=origen_app WHERE id=$1', [historical.id]);
   await denied('UPDATE ventas SET cancelada=NOT cancelada WHERE id=$1', [historical.id], 'P0001');
   await denied('UPDATE shared_archive.sale_originals SET document_text=document_text');
+  await denied('DELETE FROM shared_archive.sale_originals WHERE false');
+  await denied('UPDATE producto_imagenes SET sha256=sha256 WHERE false');
+  await denied('DELETE FROM producto_imagenes WHERE false');
   await denied('UPDATE shared_runtime.configuration SET version=version');
   await denied('UPDATE shared_runtime.operations SET status=status');
   await denied('DELETE FROM ventas WHERE false');

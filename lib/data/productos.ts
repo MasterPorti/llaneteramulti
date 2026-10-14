@@ -4,8 +4,9 @@ import { sharedProducts, sharedProduct, sharedCreateProduct, sharedUpdateProduct
 import type { Producto, ProductoInput } from '@/types';
 import { generateId } from '@/lib/utils/formatters';
 import { calcularImportePartida } from '@/lib/utils/iva';
-import { validarCantidad, validarImporte } from './validation';
-import { validarTexto } from './normalizado';
+import { validarCantidad } from './validation';
+import { validateProductId, validateProductInput } from './product-validation';
+import type { CambioImagenProducto } from '@/lib/utils/upload-imagen';
 
 export interface ProductoRow {
   id: string; nombre: string; descripcion: string | null; precio: number; precio_compra: number | null;
@@ -25,32 +26,29 @@ export async function obtenerProducto(id: string): Promise<Producto | null> {
   const row = (await db.query<ProductoRow>('SELECT * FROM productos WHERE id=$1 AND activo=true', [id])).rows[0];
   return row ? adaptarProducto(row) : null;
 }
-function validar(input: Partial<ProductoInput>) {
-  if (input.nombre !== undefined) validarTexto(input.nombre, 'El nombre', 200);
-  if (input.cantidad !== undefined) validarCantidad(input.cantidad, true);
-  for (const amount of [input.precio, input.precioCompra, input.precioVenta]) if (amount !== undefined) validarImporte(amount);
+function assertLegacyImageUnsupported(change: CambioImagenProducto): void {
+  if (change.imagen || change.eliminarImagen) throw new Error('Las imágenes de productos requieren la base de datos compartida.');
 }
-export async function crearProducto(input: ProductoInput): Promise<Producto> {
-  if (sharedDatabaseEnabled()) return sharedCreateProduct(input);
-  validar(input);
-  validarCantidad(input.cantidad, true);
+export async function crearProducto(input: ProductoInput, cambioImagen: CambioImagenProducto = { eliminarImagen: false }): Promise<Producto> {
+  if (sharedDatabaseEnabled()) return sharedCreateProduct(input, cambioImagen);
+  validateProductInput(input); assertLegacyImageUnsupported(cambioImagen);
   const venta = calcularImportePartida(input.precioVenta ?? input.precio, 1);
-  const compra = input.precioCompra === undefined ? null : calcularImportePartida(input.precioCompra, 1);
+  const compra = input.precioCompra == null ? null : calcularImportePartida(input.precioCompra, 1);
   const row = (await db.query<ProductoRow>(`INSERT INTO productos (id,nombre,descripcion,precio_compra,precio,stock,activo)
-    VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING *`, [generateId(), input.nombre, input.descripcion ?? null, compra, venta, input.cantidad])).rows[0];
+    VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING *`, [generateId(), input.nombre.trim(), input.descripcion?.trim() || null, compra, venta, input.cantidad])).rows[0];
   return adaptarProducto(row);
 }
-export async function actualizarProducto(id: string, input: Partial<ProductoInput>): Promise<Producto | null> {
-  if (sharedDatabaseEnabled()) return sharedUpdateProduct(id, input);
-  validar(input);
+export async function actualizarProducto(id: string, input: Partial<ProductoInput>, cambioImagen: CambioImagenProducto = { eliminarImagen: false }): Promise<Producto | null> {
+  if (sharedDatabaseEnabled()) return sharedUpdateProduct(id, input, cambioImagen);
+  validateProductId(id); validateProductInput(input, true); assertLegacyImageUnsupported(cambioImagen);
   return transaction(async (client) => {
     const current = (await client.query<ProductoRow>('SELECT * FROM productos WHERE id=$1 AND activo=true FOR UPDATE', [id])).rows[0];
     if (!current) return null;
     const venta = input.precioVenta ?? input.precio;
     const row = (await client.query<ProductoRow>(`UPDATE productos SET nombre=$1,descripcion=$2,precio_compra=$3,precio=$4,
       stock=$5,updated_at=NOW() WHERE id=$6 RETURNING *`,
-    [input.nombre ?? current.nombre, input.descripcion === undefined ? current.descripcion : input.descripcion,
-      input.precioCompra === undefined ? current.precio_compra : calcularImportePartida(input.precioCompra, 1),
+    [input.nombre?.trim() ?? current.nombre, input.descripcion === undefined ? current.descripcion : input.descripcion.trim() || null,
+      input.precioCompra === undefined ? current.precio_compra : input.precioCompra === null ? null : calcularImportePartida(input.precioCompra, 1),
       venta === undefined ? current.precio : calcularImportePartida(venta, 1), input.cantidad ?? current.stock, id])).rows[0];
     return adaptarProducto(row);
   });

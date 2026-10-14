@@ -219,7 +219,7 @@ export function buildMergePlan(black, white) {
   }
   const tables={...catalog,'public.ventas':canonicalSales,'public.ventas_productos':productSales,'public.movimientos_bodega':movements,'public.producto_imagenes':rows(black,'public.producto_imagenes'),'public.bodegas':rows(white,'public.bodegas'),'public.app_metadata':[...metadata.values()]};
   const summary={counts:Object.fromEntries(Object.entries(tables).map(([table,value])=>[table,value.length])), sharedSales:imported.size, sharedTires:whiteTires.length,
-    whiteVisibleSales:canonicalSales.filter(s=>s.origen_app==='blanca'||scopes.some(p=>p.sale_kind==='ventas'&&p.sale_id===s.id&&p.provider_key==='COMERCIALIZADORA DE NEW TIRES')).length,
+    whiteVisibleSales:canonicalSales.filter(s=>!s.items.some(item=>item.llantaId)||scopes.some(p=>p.sale_kind==='ventas'&&p.sale_id===s.id&&p.provider_key==='COMERCIALIZADORA DE NEW TIRES')).length,
     archivedRows:originalRows.length, stockAuthority:'negra', preservesInactive:true, preservesUnknownCosts:true, pendingOperations:0};
   return {version:1,summary,tables,adjustments,scopes,operations,originalRows,saleOriginals,entityMap};
 }

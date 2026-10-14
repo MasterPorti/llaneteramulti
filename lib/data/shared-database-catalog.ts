@@ -5,7 +5,10 @@ import { generateId } from '@/lib/utils/formatters';
 import { calcularImportePartida } from '@/lib/utils/iva';
 import { validarBodega, validarCantidad, validarImporte } from './validation';
 import { validarTexto } from './normalizado';
-import { tireScopeSql } from './shared-database';
+import { tireScopeSql, tireScopeSqlFor } from './shared-database';
+import { validateProductId, validateProductInput } from './product-validation';
+import { guardarImagenProducto } from './product-image-storage';
+import type { CambioImagenProducto } from '@/lib/utils/upload-imagen';
 
 export interface SharedTire extends Llanta { origen_app: string }
 export interface SharedProduct {
@@ -41,7 +44,7 @@ export async function sharedTire(id: string, includeInactive = false): Promise<L
 }
 export async function sharedMovements(): Promise<MovimientoBodega[]> {
   return (await db.query<MovimientoBodega>(`SELECT m.* FROM movimientos_bodega m JOIN llantas l ON l.id=m."llantaId"
-    WHERE (l.origen_app='blanca' OR upper(regexp_replace(btrim(l.proveedor),'[[:space:]]+',' ','g'))='COMERCIALIZADORA DE NEW TIRES') ORDER BY m.fecha DESC,m.id`)).rows;
+    WHERE ${tireScopeSqlFor('l')} ORDER BY m.fecha DESC,m.id`)).rows;
 }
 export async function sharedProducts(): Promise<Producto[]> {
   return (await db.query<SharedProduct>('SELECT * FROM productos WHERE activo=true ORDER BY nombre,id')).rows.map(adaptSharedProduct);
@@ -50,31 +53,36 @@ export async function sharedProduct(id: string): Promise<Producto | null> {
   const row = (await db.query<SharedProduct>('SELECT * FROM productos WHERE id=$1 AND activo=true', [id])).rows[0];
   return row ? adaptSharedProduct(row) : null;
 }
-function validateProduct(input: Partial<ProductoInput>): void {
-  if (input.nombre !== undefined) validarTexto(input.nombre, 'El nombre', 200);
-  if (input.cantidad !== undefined) validarCantidad(input.cantidad, true);
-  for (const v of [input.precio, input.precioCompra, input.precioVenta]) if (v !== undefined) validarImporte(v);
+export async function sharedCreateProduct(input: ProductoInput, cambioImagen: CambioImagenProducto = { eliminarImagen: false }): Promise<Producto> {
+  validateProductInput(input);
+  return transaction(async client => {
+    const imageId = cambioImagen.imagen ? await guardarImagenProducto(client, cambioImagen.imagen) : null;
+    const row = (await client.query<SharedProduct>(`INSERT INTO productos(id,nombre,descripcion,"precioCompra","precioVenta",stock,activo,origen_app,imagen_id)
+      VALUES($1,$2,$3,$4,$5,$6,true,'blanca',$7) RETURNING *`, [generateId(), input.nombre.trim(), input.descripcion?.trim() || null,
+      input.precioCompra == null ? null : calcularImportePartida(input.precioCompra, 1), calcularImportePartida(input.precioVenta ?? input.precio, 1), input.cantidad, imageId])).rows[0];
+    return adaptSharedProduct(row);
+  });
 }
-export async function sharedCreateProduct(input: ProductoInput): Promise<Producto> {
-  validateProduct(input); validarCantidad(input.cantidad, true);
-  const row = (await db.query<SharedProduct>(`INSERT INTO productos(id,nombre,descripcion,"precioCompra","precioVenta",stock,activo,origen_app)
-    VALUES($1,$2,$3,$4,$5,$6,true,'blanca') RETURNING *`, [generateId(), input.nombre, input.descripcion ?? null,
-    input.precioCompra === undefined ? null : calcularImportePartida(input.precioCompra, 1), calcularImportePartida(input.precioVenta ?? input.precio, 1), input.cantidad])).rows[0];
-  return adaptSharedProduct(row);
-}
-export async function sharedUpdateProduct(id: string, input: Partial<ProductoInput>): Promise<Producto | null> {
-  validateProduct(input);
+export async function sharedUpdateProduct(id: string, input: Partial<ProductoInput>, cambioImagen: CambioImagenProducto = { eliminarImagen: false }): Promise<Producto | null> {
+  validateProductId(id); validateProductInput(input, true);
   return transaction(async client => {
     const row = (await client.query<SharedProduct>('SELECT * FROM productos WHERE id=$1 AND activo=true FOR UPDATE', [id])).rows[0];
     if (!row) return null;
+    let imageId = row.imagen_id, legacyImage = row.imagen;
+    if (cambioImagen.imagen) {
+      imageId = await guardarImagenProducto(client, cambioImagen.imagen); legacyImage = null;
+    } else if (cambioImagen.eliminarImagen) {
+      imageId = null; legacyImage = null;
+    }
     const price = input.precioVenta ?? input.precio;
     const result = await client.query<SharedProduct>(`UPDATE productos SET nombre=$2,descripcion=$3,"precioCompra"=$4,"precioVenta"=$5,
-      stock=$6,"updatedAt"=NOW() WHERE id=$1 RETURNING *`, [id, input.nombre ?? row.nombre, input.descripcion === undefined ? row.descripcion : input.descripcion,
-      input.precioCompra === undefined ? row.precioCompra : calcularImportePartida(input.precioCompra, 1), price === undefined ? row.precioVenta : calcularImportePartida(price, 1), input.cantidad ?? row.stock]);
+      stock=$6,imagen_id=$7,imagen=$8,"updatedAt"=NOW() WHERE id=$1 RETURNING *`, [id, input.nombre?.trim() ?? row.nombre, input.descripcion === undefined ? row.descripcion : input.descripcion.trim() || null,
+      input.precioCompra === undefined ? row.precioCompra : input.precioCompra === null ? null : calcularImportePartida(input.precioCompra, 1), price === undefined ? row.precioVenta : calcularImportePartida(price, 1), input.cantidad ?? row.stock, imageId, legacyImage]);
     return adaptSharedProduct(result.rows[0]);
   });
 }
 export async function sharedAdjustProduct(id: string, amount: number): Promise<Producto | null> {
+  validateProductId(id);
   if (!Number.isSafeInteger(amount)) throw new Error('El ajuste debe ser entero.');
   return transaction(async client => {
     const row = (await client.query<SharedProduct>('SELECT * FROM productos WHERE id=$1 AND activo=true FOR UPDATE', [id])).rows[0];

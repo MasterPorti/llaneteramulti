@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { fork } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -59,11 +59,17 @@ async function check(name, operation) {
   catch (error) { outcomes.push({ name, status: 'failed', reason: error.message }); process.stdout.write(`FAIL ${name}: ${error.message}\n`); }
 }
 let counter = 0;
-async function tire(stock = 10, { supplier = 'COMERCIALIZADORA DE NEW TIRES', domain = 'sistema' } = {}) {
+async function tire(stock = 10, { supplier = 'COMERCIALIZADORA DE NEW TIRES', domain = 'sistema', origin = 'negra' } = {}) {
   const id = `${prefix}-t${++counter}`;
   const warehouses = Object.fromEntries(Array.from({ length: 8 }, (_, index) => [`bodega-${index + 1}`, index === 0 ? stock : 0]));
   await client.query(`INSERT INTO llantas(id,marca,modelo,medida,ancho,perfil,rin,"precioCompra","precioVenta","stockPorBodega",proveedor,dominio,origen_app)
-    VALUES($1,'Integration','Fixture','205/55R16',205,55,16,50,116,$2::jsonb,$3,$4,'negra')`, [id, JSON.stringify(warehouses), supplier, domain]);
+    VALUES($1,'Integration','Fixture','205/55R16',205,55,16,50,116,$2::jsonb,$3,$4,$5)`, [id, JSON.stringify(warehouses), supplier, domain, origin]);
+  return id;
+}
+async function movement(tireId) {
+  const id = `${prefix}-m${++counter}`;
+  await client.query(`INSERT INTO movimientos_bodega(id,"llantaId","bodegaOrigen","bodegaDestino",cantidad,fecha,dominio)
+    VALUES($1,$2,'bodega-1','bodega-2',1,NOW(),'sistema')`, [id, tireId]);
   return id;
 }
 async function product(stock = 10) {
@@ -83,9 +89,21 @@ const blackProductInput = (id, cantidad = 1, requestId = randomUUID()) => ({ req
 async function tireStock(id) { return Number((await client.query('SELECT "stockPorBodega"->>\'bodega-1\' AS stock FROM llantas WHERE id=$1', [id])).rows[0].stock); }
 async function productStock(id) { return Number((await client.query('SELECT stock FROM productos WHERE id=$1', [id])).rows[0].stock); }
 async function storedSale(id) { return (await client.query('SELECT * FROM ventas WHERE id=$1', [id])).rows[0]; }
+async function photo(background) {
+  const bytes = await require('sharp')({ create: { width: 16, height: 10, channels: 3, background } }).png().toBuffer();
+  return { base64: bytes.toString('base64'), name: `${prefix}.png`, mime: 'image/png' };
+}
+async function storedPhoto(id) {
+  const image = (await client.query('SELECT * FROM producto_imagenes WHERE id=$1', [id])).rows[0];
+  assert.ok(image, 'The product image must remain stored as a real database blob.');
+  assert.equal(image.mime_type, 'image/webp'); assert.equal(Number(image.tamanio_bytes), image.contenido.length);
+  assert.equal(image.ancho, 16); assert.equal(image.alto, 10);
+  assert.equal(image.sha256, createHash('sha256').update(image.contenido).digest('hex'));
+  return image;
+}
 async function fingerprints() {
   const all = {};
-  for (const table of ['llantas', 'productos', 'servicios', 'ventas', 'ventas_productos', 'movimientos_bodega']) {
+  for (const table of ['llantas', 'productos', 'servicios', 'ventas', 'ventas_productos', 'movimientos_bodega', 'producto_imagenes']) {
     all[table] = new Map((await client.query(`SELECT id,md5(row_to_json(t)::text) AS hash FROM public.${table} t ORDER BY id`)).rows.map(row => [row.id, row.hash]));
   }
   return all;
@@ -146,10 +164,105 @@ try {
     assert.equal(w.products[0].id, p); assert.equal(b.products[0].id, p); assert.equal(w.products[0].precioCompra, undefined); assert.equal(b.products[0].precioCompra, null);
     assert.equal(w.services[0].id, s); assert.equal(b.services[0].id, s);
   });
+  await check('white tire catalog, direct lookup and movements require New Tires regardless of origin', async () => {
+    const primary = await tire(), ownNewTires = await tire(10, { supplier: '  comercializadora   de new tires  ', origin: 'blanca' });
+    const ownOther = await tire(10, { supplier: 'Integration Other Supplier', origin: 'blanca' });
+    const ownUnknown = await tire(10, { supplier: null, origin: 'blanca' });
+    const blackOther = await tire(10, { supplier: 'Integration Other Supplier' });
+    const allowed = [primary, ownNewTires], hidden = [ownOther, ownUnknown, blackOther], ids = [...allowed, ...hidden];
+    const movementIds = new Map();
+    for (const id of ids) movementIds.set(id, await movement(id));
+    const [whiteCatalog, blackCatalog] = (await Promise.all([run('blanca', 'catalog', { ids }), run('negra', 'catalog', { ids })])).map(expectOk);
+    assert.deepEqual(whiteCatalog.tires.map(row => row.id).sort(), allowed.sort());
+    assert.deepEqual(blackCatalog.tires.map(row => row.id).sort(), ids.sort());
+    for (const id of allowed) assert.equal(expectOk(await run('blanca', 'tire-get', { id })).id, id);
+    for (const id of hidden) {
+      assert.equal(expectOk(await run('blanca', 'tire-get', { id })), null);
+      assert.equal(expectOk(await run('blanca', 'tire-get', { id, includeInactive: true })), null);
+    }
+    const movements = expectOk(await run('blanca', 'movements', { ids }));
+    assert.deepEqual(movements.map(row => row.id).sort(), allowed.map(id => movementIds.get(id)).sort());
+    for (const id of ids) assert.equal(await tireStock(id), 10, 'Reading filtered catalogs and movements must not change stock.');
+  });
+  await check('white cannot sell its own other or unknown supplier tires and every deduction rolls back', async () => {
+    const allowed = await tire();
+    for (const supplier of ['Integration Other Supplier', null]) {
+      const hidden = await tire(10, { supplier, origin: 'blanca' });
+      for (const items of [[tireItem(hidden)], [tireItem(allowed), tireItem(hidden)]]) {
+        const input = whiteInput(items);
+        const before = (await client.query('SELECT id,md5(row_to_json(t)::text) AS hash FROM llantas t WHERE id=ANY($1::varchar[]) ORDER BY id', [[allowed, hidden]])).rows;
+        const rejected = await run('blanca', 'sale', { input });
+        assert.equal(rejected.ok, false, 'Owning the catalog row must not bypass the supplier restriction.');
+        assert.equal((await client.query('SELECT count(*)::int AS n FROM ventas WHERE request_id=$1', [input.operacionId])).rows[0].n, 0);
+        assert.equal(await tireStock(allowed), 10); assert.equal(await tireStock(hidden), 10);
+        const after = (await client.query('SELECT id,md5(row_to_json(t)::text) AS hash FROM llantas t WHERE id=ANY($1::varchar[]) ORDER BY id', [[allowed, hidden]])).rows;
+        assert.deepEqual(after, before, 'A rejected sale must leave both tire rows byte-equivalent.');
+      }
+    }
+  });
   await check('white product creation is immediately readable in black with unknown cost preserved', async () => {
     const created = expectOk(await run('blanca', 'product', { input: { nombre: `${prefix} created`, precio: 58, cantidad: 4 } }));
     const catalog = expectOk(await run('negra', 'catalog', { ids: [created.id] }));
     assert.equal(catalog.products.length, 1); assert.equal(catalog.products[0].stock, 4); assert.equal(catalog.products[0].precioCompra, null);
+  });
+  await check('white product photo and cost edits are shared without rewriting sales, stock or image blobs', async () => {
+    const firstPhoto = await photo({ r: 220, g: 30, b: 30 }), secondPhoto = await photo({ r: 20, g: 60, b: 210 });
+    const created = expectOk(await run('blanca', 'product', {
+      input: { nombre: `${prefix} photographed product`, precioCompra: 12.5, precioVenta: 58, cantidad: 5 }, imageChange: firstPhoto,
+    }));
+    assert.equal(created.precioCompra, 12.5); assert.equal(created.stock, 5); assert.ok(created.imagenId);
+    const originalImage = await storedPhoto(created.imagenId);
+    async function readBoth({ cost, price, imageId, stock }) {
+      for (const application of ['blanca', 'negra']) {
+        const result = expectOk(await run(application, 'catalog', { ids: [created.id] })).products;
+        assert.equal(result.length, 1); const item = result[0];
+        assert.equal(item.precioCompra, cost === null && application === 'blanca' ? undefined : cost);
+        assert.equal(item.precioVenta, price); assert.equal(item.stock, stock); assert.equal(item.imagenId, imageId);
+        assert.equal(item.imagen, imageId ? `/api/productos/imagenes/${imageId}` : undefined);
+      }
+    }
+    await readBoth({ cost: 12.5, price: 58, imageId: created.imagenId, stock: 5 });
+    const sale = expectOk(await run('blanca', 'sale', { domain: 'general', input: whiteInput([{ tipo: 'catalogo', id: created.id, cantidad: 1 }]) }));
+    const storedBefore = await storedSale(sale.id);
+    assert.equal(storedBefore.items[0].costoUnitario, 12.5); assert.equal(Number(storedBefore.total), 58);
+    assert.equal(Number(storedBefore.subtotal), 50); assert.equal(Number(storedBefore.iva), 8);
+    const edited = expectOk(await run('blanca', 'product-update', {
+      id: created.id, input: { nombre: `${prefix} edited photo product`, precioCompra: null, precioVenta: 69.6 }, imageChange: secondPhoto,
+    }));
+    assert.notEqual(edited.imagenId, created.imagenId); assert.ok(edited.imagenId);
+    const replacementImage = await storedPhoto(edited.imagenId);
+    assert.notEqual(replacementImage.sha256, originalImage.sha256);
+    await readBoth({ cost: null, price: 69.6, imageId: edited.imagenId, stock: 4 });
+    assert.deepEqual(await storedSale(sale.id), storedBefore, 'Catalog edits must not replace historical prices, costs or IVA.');
+    assert.deepEqual(await storedPhoto(created.imagenId), originalImage, 'Replacing an image retains its original bytes.');
+    const unchangedPhoto = expectOk(await run('blanca', 'product-update', { id: created.id, input: { descripcion: 'Synthetic description-only edit' } }));
+    assert.equal(unchangedPhoto.imagenId, edited.imagenId); assert.equal(unchangedPhoto.precioCompra, undefined);
+    const samePhotoProduct = expectOk(await run('blanca', 'product', {
+      input: { nombre: `${prefix} reused photo`, precio: 69.6, cantidad: 0 }, imageChange: secondPhoto,
+    }));
+    assert.equal(samePhotoProduct.imagenId, edited.imagenId, 'The limited role must reuse the same stored image by hash without updating it.');
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM producto_imagenes WHERE sha256=$1', [replacementImage.sha256])).rows[0].n, 1);
+    const removed = expectOk(await run('blanca', 'product-update', { id: created.id, input: {}, imageChange: { eliminarImagen: true } }));
+    assert.equal(removed.imagenId, null);
+    await readBoth({ cost: null, price: 69.6, imageId: null, stock: 4 });
+    assert.deepEqual(await storedPhoto(created.imagenId), originalImage);
+    assert.deepEqual(await storedPhoto(edited.imagenId), replacementImage, 'Removing a reference must not delete an image shared by another product.');
+    assert.equal((await client.query('SELECT imagen_id,imagen FROM productos WHERE id=$1', [created.id])).rows[0].imagen, null);
+    assert.deepEqual(await storedSale(sale.id), storedBefore); assert.equal(await productStock(created.id), 4);
+  });
+  await check('invalid white photo upload leaves no product, image or partial catalog edit', async () => {
+    const imageChange = { base64: Buffer.from('This is not an image').toString('base64'), name: 'invalid.png', mime: 'image/png' };
+    const imagesBefore = (await client.query('SELECT count(*)::int AS n FROM producto_imagenes')).rows[0].n;
+    const name = `${prefix} rejected photo`;
+    const created = await run('blanca', 'product', { input: { nombre: name, precio: 58, cantidad: 3 }, imageChange });
+    assert.equal(created.ok, false); assert.match(created.error.message, /imagen/i);
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM productos WHERE nombre=$1', [name])).rows[0].n, 0);
+    const p = await product();
+    const before = (await client.query('SELECT md5(row_to_json(t)::text) AS hash FROM productos t WHERE id=$1', [p])).rows[0].hash;
+    const edited = await run('blanca', 'product-update', { id: p, input: { precioVenta: 99, precioCompra: 7, cantidad: 1 }, imageChange });
+    assert.equal(edited.ok, false); assert.match(edited.error.message, /imagen/i);
+    assert.equal((await client.query('SELECT md5(row_to_json(t)::text) AS hash FROM productos t WHERE id=$1', [p])).rows[0].hash, before);
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM producto_imagenes')).rows[0].n, imagesBefore);
   });
   await check('both applications allocate distinct service codes under concurrent catalog writes', async () => {
     const blocker = new Client({ ...connection, database, application_name: 'integration_catalog_barrier' });
@@ -274,7 +387,7 @@ try {
     assert.equal(await tireStock(t), 10); assert.equal(await productStock(p), 10); assert.equal((await storedSale(sale.id)).cancelada, true);
   });
   await check('black mixed-provider history remains whole in white and cancels all real stock once', async () => {
-    const t = await tire(10, { domain: 'general' }), other = await tire(10, { domain: 'general', supplier: 'Integration Other Supplier' }), s = await service();
+    const t = await tire(10, { domain: 'general' }), other = await tire(10, { domain: 'general', supplier: 'Integration Other Supplier', origin: 'blanca' }), s = await service();
     const sale = expectOk(await run('negra', 'mixed-sale', { input: { requestId: randomUUID(), clienteNombre: customer, metodoPago: 'efectivo', items: [tireItem(t), tireItem(other), { tipo: 'servicio', id: s, cantidad: 1 }] } }));
     const detail = expectOk(await run('blanca', 'get', { id: sale.id })); assert.equal(detail.items.length, 3); assert.equal(detail.importeNewTires, 116); assert.equal(detail.total, 261); assert.equal(detail.iva, 0);
     assert.equal((await client.query('SELECT count(*)::int AS n FROM shared_runtime.sale_item_scope WHERE sale_kind=\'ventas\' AND sale_id=$1 AND provider_key=\'COMERCIALIZADORA DE NEW TIRES\'', [sale.id])).rows[0].n, 1);
@@ -287,6 +400,42 @@ try {
     assert.equal(expectOk(await run('blanca', 'get', { id: sale.id })), null);
     assert.equal(expectOk(await run('blanca', 'cancel', { id: sale.id, reason: 'Must not cancel' })), null);
     assert.equal(await tireStock(t), 9); assert.equal((await storedSale(sale.id)).cancelada, false);
+  });
+  await check('white-origin sales with only other or unknown supplier tires stay hidden and unchanged', async () => {
+    for (const supplier of ['Integration Other Supplier', null]) {
+      const t = await tire(10, { supplier, origin: 'blanca' });
+      const sale = expectOk(await run('negra', 'sale', { input: blackInput(t) }));
+      // Model a previously recorded white document; only this synthetic QA row
+      // changes origin. The sale lines and captured supplier evidence stay real.
+      await client.query("UPDATE ventas SET origen_app='blanca' WHERE id=$1", [sale.id]);
+      const before = await storedSale(sale.id);
+      assert.equal(expectOk(await run('blanca', 'get', { id: sale.id })), null);
+      assert.equal(expectOk(await run('blanca', 'get', { id: sale.folio, by: 'folio' })), null);
+      assert.deepEqual(expectOk(await run('blanca', 'history', { ids: [sale.id] })), []);
+      assert.equal(expectOk(await run('blanca', 'cancel', { id: sale.id, reason: 'Must not cancel hidden white-origin sale' })), null);
+      assert.deepEqual(await storedSale(sale.id), before); assert.equal(await tireStock(t), 9);
+    }
+  });
+  await check('black service and product-only documents remain visible in white with recorded IVA intact', async () => {
+    const s = await service(), p = await product();
+    const inputs = [[{ tipo: 'servicio', id: s, cantidad: 1 }], [{ tipo: 'catalogo', id: p, cantidad: 1 }]];
+    const sales = [];
+    for (const items of inputs) sales.push(expectOk(await run('negra', 'mixed-sale', {
+      input: { requestId: randomUUID(), clienteNombre: customer, metodoPago: 'efectivo', items },
+    })));
+    const productSale = expectOk(await run('negra', 'product-sale', { input: blackProductInput(p) }));
+    const ids = [...sales.map(sale => sale.id), productSale.id];
+    const history = expectOk(await run('blanca', 'history', { ids }));
+    assert.deepEqual(history.map(sale => sale.id).sort(), ids.sort());
+    for (const sale of sales) {
+      const detail = expectOk(await run('blanca', 'get', { id: sale.id }));
+      assert.equal(detail.items.length, 1); assert.equal(detail.importeNewTires, 0);
+      for (const field of ['subtotal', 'iva', 'total']) assert.equal(detail[field], Number(sale[field]));
+      assert.equal(detail.iva, 0, 'White must not recalculate the black application fiscal policy.');
+    }
+    const detail = expectOk(await run('blanca', 'get', { id: productSale.id }));
+    assert.equal(detail.storageKind, 'ventas_productos'); assert.equal(detail.total, Number(productSale.total));
+    assert.equal(await productStock(p), 8);
   });
   await check('both applications preserve imported and invoiced documents against cancellation', async () => {
     for (const protectedColumn of ['facturada', 'imported_read_only']) {

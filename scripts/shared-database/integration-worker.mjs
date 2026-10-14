@@ -54,15 +54,24 @@ function successful(result) {
   if (!result?.success) throw new Error(result?.error || 'Application rejected operation.');
   return result.data;
 }
+async function productImage(change) {
+  if (change === undefined) return undefined;
+  const form = new FormData();
+  if (change.eliminarImagen !== undefined) form.set('eliminarImagen', String(change.eliminarImagen));
+  if (change.base64 !== undefined) form.set('imagen', new File([Buffer.from(change.base64, 'base64')], change.name, { type: change.mime }));
+  return load(path.join(root, 'lib/utils/upload-imagen')).prepararImagenProducto(form);
+}
 async function dispatch(message) {
   const { application, operation, input, id, reason, ids } = message;
   if (application === 'blanca') {
     if (operation === 'sale') return data('shared-database-ventas').sharedCreateSale(input, message.domain ?? 'sistema');
     if (operation === 'cancel') return data('shared-database-ventas').sharedCancelSale(id, reason);
-    if (operation === 'get') return data('shared-database-ventas').sharedFindSale(id);
-    if (operation === 'product') return data('shared-database-catalog').sharedCreateProduct(input);
+    if (operation === 'get') return data('shared-database-ventas').sharedFindSale(id, message.by ?? 'id');
+    if (operation === 'tire-get') return data('shared-database-catalog').sharedTire(id, message.includeInactive ?? false);
+    if (operation === 'movements') return (await data('shared-database-catalog').sharedMovements()).filter(row => ids.includes(row.llantaId));
+    if (operation === 'product') return data('shared-database-catalog').sharedCreateProduct(input, await productImage(message.imageChange));
     if (operation === 'service') return data('shared-database-catalog').sharedSaveService(null, input);
-    if (operation === 'product-update') return data('shared-database-catalog').sharedUpdateProduct(id, input);
+    if (operation === 'product-update') return data('shared-database-catalog').sharedUpdateProduct(id, input, await productImage(message.imageChange));
     if (operation === 'product-adjust') return data('shared-database-catalog').sharedAdjustProduct(id, input.delta);
     if (operation === 'service-update') return data('shared-database-catalog').sharedSaveService(id, input);
     if (operation === 'catalog-deactivate') return data('shared-database-catalog').sharedDeleteCatalog(message.table, id);

@@ -56,7 +56,8 @@ test('reviewed SQL cannot introduce a transaction boundary but PL/pgSQL bodies r
   assertTransactionSafeSql("DO $body$ BEGIN PERFORM 1; END $body$; -- COMMIT\nSELECT 'ROLLBACK';");
   for (const sql of ['COMMIT;', 'ROLLBACK;', 'BEGIN;', 'START TRANSACTION;', 'CREATE DATABASE test;', 'ALTER SYSTEM SET x=1;', '/* nested /* comment */ */ COMMIT;']) assert.throws(() => assertTransactionSafeSql(sql), /SINGLE_TRANSACTION/);
   const whiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-  const blackRoot = path.resolve(whiteRoot, '../negra');
+  const blackRoot = process.env.SHARED_TEST_BLACK_ROOT
+    ? path.resolve(process.env.SHARED_TEST_BLACK_ROOT) : path.resolve(whiteRoot, '../sistemaBodega');
   for (const file of ['schema.sql', 'folios.sql', 'white-role-permissions.sql']) assertTransactionSafeSql(await fs.readFile(path.join(blackRoot, 'database/shared', file), 'utf8'));
 });
 test('active clients and prepared transactions prevent the cutover, without terminating any connection', async () => {

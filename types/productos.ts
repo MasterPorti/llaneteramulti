@@ -17,7 +17,7 @@ export interface ProductoInput {
   nombre: string;
   descripcion?: string;
   precio: number;
-  precioCompra?: number;
+  precioCompra?: number | null;
   precioVenta?: number;
   cantidad: number;
 }
