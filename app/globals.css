@@ -433,7 +433,7 @@ body {
 @media print {
   @page {
     margin: 0;
-    size: 80mm auto;
+    size: auto;
   }
 
   body {
@@ -459,19 +459,33 @@ body {
     background: white;
   }
 
-  /* Ticket: ocupa todo el ancho al imprimir */
+  /* Keep the printable area independent from desktop and mobile page spacing. */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .card-body:has(.ticket-preview-container) {
+    padding: 0 !important;
+  }
+
   .ticket-preview-container {
     border: none !important;
     padding: 0 !important;
     box-shadow: none !important;
     display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
   }
 
-  .ticket {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding-top: 0 !important;
-    padding-bottom: 3mm !important;
+  .ticket-preview-container .ticket {
+    box-sizing: border-box;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
   }
 
   body > * {
@@ -496,87 +510,92 @@ body {
   }
 }
 
-/* Ticket print - 80mm thermal */
+/* One thermal receipt style for the preview and the 80 mm printout. */
 .ticket {
+  box-sizing: border-box;
   width: 80mm;
-  padding: 3mm 10mm 3mm 15mm;
-  font-family: 'Courier New', monospace;
+  max-width: 100%;
+  padding: 2mm 3mm;
+  font-family: 'Courier New', Courier, monospace;
   font-size: 10pt;
-  font-weight: 900;
-  line-height: 1.3;
-  -webkit-text-stroke: 0.4px #000;
+  font-weight: 400;
+  line-height: 1.35;
   color: #000;
+  background: #fff;
+  overflow-wrap: anywhere;
 }
-
+.ticket strong,
+.ticket-business-name,
+.ticket-total,
+.ticket-status {
+  font-weight: 700;
+}
+.ticket p {
+  margin: 0;
+}
 .ticket-header {
   text-align: center;
   margin-bottom: 3mm;
-  border-bottom: 1px dashed #000;
-  padding-bottom: 2mm;
 }
-
+.ticket-logo {
+  display: block;
+  width: 20mm;
+  height: auto;
+  margin: 0 auto 2mm;
+  filter: grayscale(1);
+}
+.ticket-hours {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 3mm;
+  text-align: left;
+}
 .ticket-row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 2mm;
 }
-
+.ticket-row > * {
+  min-width: 0;
+}
+.ticket-row > :last-child {
+  text-align: right;
+}
 .ticket-divider {
   border-top: 1px dashed #000;
   margin: 2mm 0;
 }
-
-.ticket-total {
-  font-weight: bold;
-  font-size: 12pt;
+.ticket-item + .ticket-item {
+  margin-top: 2mm;
 }
-
-/* Ticket preview container - responsive */
+.ticket-total {
+  margin: 2mm 0;
+}
+.ticket-status {
+  text-align: center;
+  padding: 2mm 0;
+  border-block: 1px dashed #000;
+  margin-bottom: 3mm !important;
+}
+.ticket-footer {
+  text-align: center;
+}
 .ticket-preview-container {
-  background: white;
+  background: #fff;
   border: 1px solid var(--border-light);
   padding: 1rem;
   display: flex;
   justify-content: center;
   overflow: hidden;
 }
-
 .ticket-preview-container .ticket {
   max-width: 80mm;
   width: 100%;
 }
-
-@media (max-width: 767px) {
+@media screen and (max-width: 767px) {
   .ticket-preview-container {
     padding: 0.5rem;
-  }
-
-  .ticket-preview-container .ticket {
-    width: 100%;
-    font-size: 8pt;
-    padding: 2mm;
-  }
-
-  .ticket-preview-container .ticket-header {
-    margin-bottom: 2mm;
-    padding-bottom: 1mm;
-  }
-
-  .ticket-preview-container .ticket-header p.text-lg {
-    font-size: 11pt;
-  }
-
-  .ticket-preview-container .ticket-divider {
-    margin: 1.5mm 0;
-  }
-
-  .ticket-preview-container .ticket-total {
-    font-size: 10pt;
-  }
-
-  .ticket-preview-container .ticket table th,
-  .ticket-preview-container .ticket table td {
-    padding: 1px 2px;
-    font-size: 7pt;
   }
 }
 

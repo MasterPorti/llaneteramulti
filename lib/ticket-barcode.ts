@@ -22,5 +22,5 @@ export function ticketBarcodeSvg(kind: TicketKind, id: string): string {
 }
 
 export function ticketBarcodeHtml(kind: TicketKind,id:string):string {
-  return `<div style="background:#fff;color:#000;text-align:center;padding:3mm 0;break-inside:avoid;max-width:74mm;margin:auto">${ticketBarcodeSvg(kind,id)}<div style="font:7pt monospace;overflow-wrap:anywhere;margin-top:1mm">ID: ${ticketCode(kind,id)}</div><div style="font:7pt sans-serif;margin-top:1mm">Registro manual en Administración</div></div>`;
+  return `<div style="background:#fff;color:#000;text-align:center;padding:3mm 0;break-inside:avoid;max-width:74mm;margin:auto">${ticketBarcodeSvg(kind,id)}<div style="font:7pt 'Courier New',Courier,monospace;overflow-wrap:anywhere;margin-top:1mm">ID: ${ticketCode(kind,id)}</div></div>`;
 }
