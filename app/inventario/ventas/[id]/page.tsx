@@ -60,6 +60,7 @@ export default async function VentaDetallePage({ params }: PageProps) {
       <PageHeader
         title={`Venta ${venta.folio}`}
         subtitle={formatDateTime(venta.fechaVenta)}
+        actions={<Link href={`/ventas/${encodeURIComponent(venta.id)}`} className="btn btn-secondary">Imprimir ticket de venta</Link>}
         breadcrumbs={[
           { label: 'Ventas', href: '/inventario/ventas' },
           { label: venta.folio },

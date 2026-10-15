@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { TicketBarcode } from '@/components/tickets/TicketBarcode';
 import Image from 'next/image';
 import { CONFIG } from '@/lib/config';
 import { formatCurrency, formatDateTime } from '@/lib/utils/formatters';
@@ -120,6 +121,7 @@ export function TicketPrint({ venta }: Props) {
 
       <div className="ticket-divider" />
 
+      <TicketBarcode id={venta.id}/>
       <div className="text-center mt-2">
         <p>Gracias por su compra!</p>
         <p className="text-xs text-gray-600 mt-1">

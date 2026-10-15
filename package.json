@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:ticket-barcodes": "node --test scripts/ticket-barcode.test.mjs",
     "dev": "next dev --hostname 127.0.0.1",
     "dev:db": "node scripts/start-development-database.mjs",
     "build": "next build",
