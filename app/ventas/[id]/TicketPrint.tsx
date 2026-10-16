@@ -12,7 +12,7 @@ interface Props {
   test?: boolean;
 }
 
-export function TicketPrint({ venta, businessName = 'Ticket de venta', showLogo = false, test = false }: Props) {
+export function TicketPrint({ venta, businessName = 'Ticket de venta', showLogo = true, test = false }: Props) {
   return (
     <div className="ticket">
       {test && <p className="ticket-status">PRUEBA · SIN VALOR DE VENTA</p>}

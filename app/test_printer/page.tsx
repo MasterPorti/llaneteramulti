@@ -27,7 +27,7 @@ const sampleSale: Venta = {
 
 export default function TestPrinterPage() {
   const [nombreNegocio, setNombreNegocio] = useState('Ticket de venta');
-  const [mostrarLogo, setMostrarLogo] = useState(false);
+  const [mostrarLogo, setMostrarLogo] = useState(true);
   return (
     <div className="printer-test-page">
       <div className="no-print">
